@@ -1,12 +1,23 @@
 package com.wantchane.bfg.mixin;
 
+import com.simibubi.create.Create;
 import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition;
+import com.simibubi.create.content.logistics.packagerLink.LogisticallyLinkedBlockItem;
 import com.simibubi.create.content.logistics.stockTicker.PackageOrder;
 
+import com.wantchane.bfg.factory_panel.FactoryPanelMenu;
+
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
+import net.neoforged.neoforge.common.Tags;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -58,7 +69,6 @@ public abstract class FactoryPanelBehaviourMixin {
     private List<BigItemStack> bfg$sortByConnectionOrder(List<BigItemStack> orderedItems) {
         FactoryPanelBehaviour self = bfg$self();
 
-        // Only sort when all connections share the same stock network
         if (self.targetedBy.isEmpty())
             return orderedItems;
 
@@ -79,7 +89,6 @@ public abstract class FactoryPanelBehaviourMixin {
         if (!sameNetwork || commonNetwork == null)
             return orderedItems;
 
-        // Build connection order map: item → first-seen index
         Map<ItemStack, Integer> orderMap = new HashMap<>();
         int index = 0;
         for (FactoryPanelConnection conn : self.targetedBy.values()) {
@@ -100,5 +109,39 @@ public abstract class FactoryPanelBehaviourMixin {
             bigStack -> orderMap.getOrDefault(bigStack.stack, Integer.MAX_VALUE)
         ));
         return sorted;
+    }
+
+    /**
+     * Cancel the client-side direct screen opening. Replaced by menu-based container opening.
+     */
+    @Inject(method = "displayScreen", at = @At("HEAD"), cancellable = true)
+    private void bfg$cancelDirectScreen(CallbackInfo ci) {
+        ci.cancel();
+    }
+
+    /**
+     * Open the factory panel menu on the server side when onShortInteract falls through
+     * to the screen-opening path (no wrench, no link item).
+     */
+    @Inject(method = "onShortInteract", at = @At("TAIL"))
+    private void bfg$openPanelMenuOnServer(Player player, InteractionHand hand, Direction side,
+                                           BlockHitResult hit, CallbackInfo ci) {
+        if (player.level().isClientSide()) return;
+        FactoryPanelBehaviour self = bfg$self();
+
+        if (!Create.LOGISTICS.mayInteract(self.network, player)) return;
+
+        if (self.targetedBy.size() + self.targetedByLinks.size() > 0
+            && player.getItemInHand(hand).is(Tags.Items.TOOLS_WRENCH)) return;
+
+        if (player.getItemInHand(hand).getItem() instanceof LogisticallyLinkedBlockItem) return;
+
+        player.openMenu(
+            new SimpleMenuProvider(
+                (containerId, inv, p) -> FactoryPanelMenu.create(containerId, inv, self),
+                self.getDisplayName()
+            ),
+            buf -> FactoryPanelPosition.STREAM_CODEC.encode(buf, self.getPanelPosition())
+        );
     }
 }
