@@ -1,13 +1,2 @@
 {
-  "itemGroup.create_better_factory_gauge": "Example Mod Tab",
-  "block.create_better_factory_gauge.example_block": "Example Block",
-  "item.create_better_factory_gauge.example_item": "Example Item",
-
-  "create_better_factory_gauge.configuration.title": "Create: Better Factory Gauge Configs",
-  "create_better_factory_gauge.configuration.section.create_better_factory_gauge.common.toml": "Create: Better Factory Gauge Configs",
-  "create_better_factory_gauge.configuration.section.create_better_factory_gauge.common.toml.title": "Create: Better Factory Gauge Configs",
-  "create_better_factory_gauge.configuration.items": "Item List",
-  "create_better_factory_gauge.configuration.logDirtBlock": "Log Dirt Block",
-  "create_better_factory_gauge.configuration.magicNumberIntroduction": "Magic Number Text",
-  "create_better_factory_gauge.configuration.magicNumber": "Magic Number"
 }
