@@ -563,13 +563,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
             for (BigItemStack input : inputConfig) {
                 renderInputItem(graphics, idx++, input, mouseX, mouseY);
             }
-            // 没有输入连接时，渲染空槽位背景
             if (inputConfig.isEmpty()) {
-                for (int i = 0; i < 9; i++) {
-                    int gx = x + (restocker ? 88 : 68 + (i % 3) * 20);
-                    int gy = y + (restocker ? 12 : 28 + (i / 3) * 20);
-                    renderSlotBackground(graphics, gx, gy);
-                }
+                // 无输入连接时不渲染任何背景（贴图自身已有槽位背景）
             }
         }
     }
@@ -594,12 +589,9 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
         int gx = x + (restocker ? 88 + (idx % 3) * 20 : 68 + (idx % 3) * 20);
         int gy = y + (restocker ? 12 + (idx / 3) * 20 : 28 + (idx / 3) * 20);
 
-        renderSlotBackground(graphics, gx, gy);
         if (bigStack != null && !bigStack.stack.isEmpty()) {
-            // 物品图标在格子内偏移 2px 居中（16×16 物品在 18×18 格子中）
-            graphics.renderItem(bigStack.stack, gx + 2, gy + 2);
-            // 数量 > 1 时显示数字
-            graphics.renderItemDecorations(font, bigStack.stack, gx + 2, gy + 2,
+            graphics.renderItem(bigStack.stack, gx, gy);
+            graphics.renderItemDecorations(font, bigStack.stack, gx, gy,
                 bigStack.stack.getCount() > 1 ? String.valueOf(bigStack.count) : null);
         }
         // 鼠标悬停检测区域 = 整个 18×18 格子
@@ -619,26 +611,11 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
         // 输出物品位置：距左 160px，距顶 48px
         int ox = x + 160;
         int oy = y + 48;
-        renderSlotBackground(graphics, ox, oy);
         if (bigStack != null && !bigStack.stack.isEmpty()) {
-            graphics.renderItem(bigStack.stack, ox + 2, oy + 2);
-            graphics.renderItemDecorations(font, bigStack.stack, ox + 2, oy + 2,
+            graphics.renderItem(bigStack.stack, ox, oy);
+            graphics.renderItemDecorations(font, bigStack.stack, ox, oy,
                 bigStack.count > 1 ? String.valueOf(bigStack.count) : null);
         }
-    }
-
-    /**
-     * 渲染槽位背景 —— 18×18 像素，模拟物品栏槽位外观。
-     * <ul>
-     *   <li>外层：18×18，20% 透明白色 (0x20FFFFFF)</li>
-     *   <li>边框：16×16，灰色 (0xFF8B8B8B)，向内偏移 1px</li>
-     *   <li>内部：14×14，深灰 (0xFF373737)，向内偏移 2px</li>
-     * </ul>
-     */
-    private void renderSlotBackground(GuiGraphics graphics, int sx, int sy) {
-        graphics.fill(sx, sy, sx + 18, sy + 18, 0x20FFFFFF);
-        graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, 0xFF8B8B8B);
-        graphics.fill(sx + 2, sy + 2, sx + 16, sy + 16, 0xFF373737);
     }
 
     @Override
