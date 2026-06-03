@@ -377,6 +377,9 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			y + (restocker ? -12 : 4),
 			0x3D3D3D, false);
 
+		int previewY = restocker ? 0 : 55;
+		graphics.pose().pushPose();
+		graphics.pose().translate(0, previewY, 0);
 		GuiGameElement.of(AllBlocks.FACTORY_GAUGE.asStack())
 			.scale(4.0d)
 			.at(0, 0, -200)
@@ -388,6 +391,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				.at(0, 0, 100)
 				.render(graphics, x + 214, y + 68);
 		}
+		graphics.pose().popPose();
 
 		if (!restocker) {
 			renderOutputItem(graphics, outputConfig, mouseX, mouseY);
