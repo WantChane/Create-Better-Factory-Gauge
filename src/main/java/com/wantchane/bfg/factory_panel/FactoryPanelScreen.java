@@ -20,9 +20,11 @@ import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.simibubi.create.foundation.utility.CreateLang;
 
 import net.createmod.catnip.platform.CatnipServices;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -128,6 +130,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
     public FactoryPanelScreen(FactoryPanelMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
+        minecraft = Minecraft.getInstance();
         this.behaviour = menu.contentHolder;
         this.restocker = behaviour.panelBE().restocker;
         this.craftingActive = !behaviour.activeCraftingArrangement.isEmpty();
@@ -142,14 +145,9 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
         connections = new ArrayList<>(behaviour.targetedBy.values());
         outputConfig = new BigItemStack(behaviour.getFilter(), behaviour.recipeOutput);
         inputConfig = connections.stream()
-            .map(conn -> {
-                FactoryPanelBehaviour source = FactoryPanelBehaviour.at(behaviour.getWorld(), conn);
-                if (source != null) {
-                    ItemStack filter = source.getFilter();
-                    int count = source.count;
-                    return new BigItemStack(filter.isEmpty() ? ItemStack.EMPTY : filter, count);
-                }
-                return new BigItemStack(ItemStack.EMPTY, 0);
+            .map(c -> {
+                FactoryPanelBehaviour b = FactoryPanelBehaviour.at(minecraft.level, c.from);
+                return b == null ? new BigItemStack(ItemStack.EMPTY, 0) : new BigItemStack(b.getFilter(), c.amount);
             })
             .toList();
         searchForCraftingRecipe();
@@ -488,7 +486,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
         // --- 输出物品（仅配方模式） ---
         if (!restocker) {
-            renderOutputItem(graphics, outputConfig, x, y);
+            renderOutputItem(graphics, outputConfig, mouseX, mouseY);
         }
 
         // --- 输入物品 3×3 格子（或合成配料） ---
@@ -516,13 +514,11 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
             String.valueOf(behaviour.getPromised()));
 
         // --- 承诺过期数值文本 ---
-        // 跟随 promiseExpiration 组件位置
-        // +3, +4 是组件内部文字偏移（左上角留白）
-        // 颜色 0xEEEEEE 是浅灰白色
+        int state = promiseExpiration.getState();
         graphics.drawString(font,
-            String.valueOf(promiseExpiration.getState()),
+            Component.literal(state == -1 ? " /" : state == 0 ? "30s" : state + "m"),
             promiseExpiration.getX() + 3, promiseExpiration.getY() + 4,
-            0xEEEEEE, false);
+            0xffeeeeee, true);
     }
 
     // ==================== 物品格子渲染 ====================
@@ -551,22 +547,31 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
      * </pre>
      */
     private void renderInputGrid(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x = getGuiLeft();
-        int y = getGuiTop();
-        int idx = 0;
+        int slot = 0;
 
         if (craftingActive) {
-            for (BigItemStack ingredient : craftingIngredients) {
-                renderInputItem(graphics, idx++, ingredient, mouseX, mouseY);
-            }
+            for (BigItemStack itemStack : craftingIngredients)
+                renderInputItem(graphics, slot++, itemStack, mouseX, mouseY);
         } else {
-            for (BigItemStack input : inputConfig) {
-                renderInputItem(graphics, idx++, input, mouseX, mouseY);
-            }
+            for (BigItemStack itemStack : inputConfig)
+                renderInputItem(graphics, slot++, itemStack, mouseX, mouseY);
             if (inputConfig.isEmpty()) {
-                // 无输入连接时不渲染任何背景（贴图自身已有槽位背景）
+                int inputX = getGuiLeft() + (restocker ? 88 : 68 + (slot % 3 * 20));
+                int inputY = getGuiTop() + (restocker ? 12 : 28) + (slot / 3 * 20);
+                if (!restocker && mouseY > inputY && mouseY < inputY + 60 && mouseX > inputX && mouseX < inputX + 60)
+                    graphics.renderComponentTooltip(font,
+                        List.of(CreateLang.translateDirect("gui.factory_panel.unconfigured_input")
+                            .withStyle(ChatFormatting.GRAY),
+                            CreateLang.translateDirect("gui.factory_panel.unconfigured_input_tip")
+                                .withStyle(ChatFormatting.GRAY),
+                            CreateLang.translateDirect("gui.factory_panel.unconfigured_input_tip_1")
+                                .withStyle(ChatFormatting.GRAY)),
+                        mouseX, mouseY);
             }
         }
+
+        if (restocker)
+            renderInputItem(graphics, slot, new BigItemStack(behaviour.getFilter(), 1), mouseX, mouseY);
     }
 
     /**
@@ -581,40 +586,85 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
      *   <li>悬停效果：渲染高亮边框 + 物品提示文本（tooltip）</li>
      * </ul>
      */
-    private void renderInputItem(GuiGraphics graphics, int idx, BigItemStack bigStack, int mouseX, int mouseY) {
-        int x = getGuiLeft();
-        int y = getGuiTop();
-        // 列号=idx%3, 行号=idx/3
-        // 配方模式起始 (68,28)，补货模式起始 (88,12)
-        int gx = x + (restocker ? 88 + (idx % 3) * 20 : 68 + (idx % 3) * 20);
-        int gy = y + (restocker ? 12 + (idx / 3) * 20 : 28 + (idx / 3) * 20);
+    private void renderInputItem(GuiGraphics graphics, int slot, BigItemStack itemStack, int mouseX, int mouseY) {
+        int inputX = getGuiLeft() + (restocker ? 88 : 68 + (slot % 3 * 20));
+        int inputY = getGuiTop() + (restocker ? 12 : 28) + (slot / 3 * 20);
 
-        if (bigStack != null && !bigStack.stack.isEmpty()) {
-            graphics.renderItem(bigStack.stack, gx, gy);
-            graphics.renderItemDecorations(font, bigStack.stack, gx, gy,
-                bigStack.stack.getCount() > 1 ? String.valueOf(bigStack.count) : null);
+        graphics.renderItem(itemStack.stack, inputX, inputY);
+        if (!craftingActive && !restocker && !itemStack.stack.isEmpty())
+            graphics.renderItemDecorations(font, itemStack.stack, inputX, inputY, itemStack.count + "");
+
+        if (mouseX < inputX - 2 || mouseX >= inputX - 2 + 20 || mouseY < inputY - 2 || mouseY >= inputY - 2 + 20)
+            return;
+
+        if (craftingActive) {
+            graphics.renderComponentTooltip(font, List.of(
+                CreateLang.translateDirect("gui.factory_panel.crafting_input"),
+                CreateLang.translateDirect("gui.factory_panel.crafting_input_tip")
+                    .withStyle(ChatFormatting.GRAY),
+                CreateLang.translateDirect("gui.factory_panel.crafting_input_tip_1")
+                    .withStyle(ChatFormatting.GRAY)),
+                mouseX, mouseY);
+            return;
         }
-        // 鼠标悬停检测区域 = 整个 18×18 格子
-        if (mouseX >= gx && mouseX < gx + 18 && mouseY >= gy && mouseY < gy + 18) {
-            renderSlotHighlight(graphics, gx, gy, 0);
-            if (bigStack != null && !bigStack.stack.isEmpty()) {
-                graphics.renderTooltip(font, bigStack.stack, mouseX, mouseY);
-            }
+
+        if (itemStack.stack.isEmpty()) {
+            graphics.renderComponentTooltip(font, List.of(
+                CreateLang.translateDirect("gui.factory_panel.empty_panel"),
+                CreateLang.translateDirect("gui.factory_panel.left_click_disconnect")
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .withStyle(ChatFormatting.ITALIC)),
+                mouseX, mouseY);
+            return;
         }
+
+        if (restocker) {
+            graphics.renderComponentTooltip(font, List.of(
+                CreateLang.translateDirect("gui.factory_panel.sending_item",
+                    itemStack.stack.getHoverName().getString()),
+                CreateLang.translateDirect("gui.factory_panel.sending_item_tip")
+                    .withStyle(ChatFormatting.GRAY),
+                CreateLang.translateDirect("gui.factory_panel.sending_item_tip_1")
+                    .withStyle(ChatFormatting.GRAY)),
+                mouseX, mouseY);
+            return;
+        }
+
+        graphics.renderComponentTooltip(font, List.of(
+            CreateLang.translateDirect("gui.factory_panel.sending_item",
+                itemStack.stack.getHoverName().getString() + " x" + itemStack.count),
+            CreateLang.translateDirect("gui.factory_panel.scroll_to_change_amount")
+                .withStyle(ChatFormatting.DARK_GRAY)
+                .withStyle(ChatFormatting.ITALIC),
+            CreateLang.translateDirect("gui.factory_panel.left_click_disconnect")
+                .withStyle(ChatFormatting.DARK_GRAY)
+                .withStyle(ChatFormatting.ITALIC)),
+            mouseX, mouseY);
     }
 
-    /**
-     * 渲染输出物品（仅配方模式）。
-     * 位置：(x+160, y+48)，在 3×3 格子区域右侧。
-     */
-    private void renderOutputItem(GuiGraphics graphics, BigItemStack bigStack, int x, int y) {
-        // 输出物品位置：距左 160px，距顶 48px
-        int ox = x + 160;
-        int oy = y + 48;
-        if (bigStack != null && !bigStack.stack.isEmpty()) {
-            graphics.renderItem(bigStack.stack, ox, oy);
-            graphics.renderItemDecorations(font, bigStack.stack, ox, oy,
-                bigStack.count > 1 ? String.valueOf(bigStack.count) : null);
+    private void renderOutputItem(GuiGraphics graphics, BigItemStack bigStack, int mouseX, int mouseY) {
+        int outputX = getGuiLeft() + 160;
+        int outputY = getGuiTop() + 48;
+        graphics.renderItem(outputConfig.stack, outputX, outputY);
+        graphics.renderItemDecorations(font, behaviour.getFilter(), outputX, outputY, outputConfig.count + "");
+
+        if (mouseX >= outputX - 1 && mouseX < outputX - 1 + 18 && mouseY >= outputY - 1
+            && mouseY < outputY - 1 + 18) {
+            MutableComponent c1 = CreateLang.translateDirect(
+                "gui.factory_panel.expected_output",
+                CreateLang.itemName(outputConfig.stack)
+                    .add(CreateLang.text(" x" + outputConfig.count))
+                    .string());
+            MutableComponent c2 = CreateLang.translateDirect("gui.factory_panel.expected_output_tip")
+                .withStyle(ChatFormatting.GRAY);
+            MutableComponent c3 = CreateLang.translateDirect("gui.factory_panel.expected_output_tip_1")
+                .withStyle(ChatFormatting.GRAY);
+            MutableComponent c4 = CreateLang.translateDirect("gui.factory_panel.expected_output_tip_2")
+                .withStyle(ChatFormatting.DARK_GRAY)
+                .withStyle(ChatFormatting.ITALIC);
+            graphics.renderComponentTooltip(font,
+                craftingActive ? List.of(c1, c2, c3) : List.of(c1, c2, c3, c4),
+                mouseX, mouseY);
         }
     }
 
@@ -625,142 +675,86 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
     // ==================== 鼠标交互 ====================
 
-    /**
-     * 鼠标点击处理。
-     *
-     * <h3>点击判定区域</h3>
-     * <b>重要：所有坐标公式必须与 {@link #renderInputItem}、{@link #renderOutputItem}
-     * 中的渲染位置完全一致，否则会出现"点了没反应"或"点 A 触发 B"的错位。</b>
-     *
-     * <h3>点击行为</h3>
-     * <ul>
-     *   <li>输入格子（非合成模式）：断开该连接（sendIt 带 removePos）</li>
-     *   <li>输出物品左半：数量 +1（范围 1-64）</li>
-     *   <li>输出物品右半：数量 -1（范围 1-64）</li>
-     *   <li>包裹箱区域：清除承诺（sendIt 带 clearPromises=true）</li>
-     *   <li>红石链路槽位：发送红石重置</li>
-     * </ul>
-     */
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
+    public boolean mouseClicked(double mouseX, double mouseY, int pButton) {
+        if (getFocused() != null && !getFocused().isMouseOver(mouseX, mouseY))
+            setFocused(null);
+
         int x = getGuiLeft();
         int y = getGuiTop();
 
-        // --- 检查输入格子点击 ---
-        // 遍历所有输入配置，检测鼠标是否在对应格子的 18×18 区域内
-        for (int i = 0; i < inputConfig.size(); i++) {
-            int gx = x + (restocker ? 88 : 68 + (i % 3) * 20);
-            int gy = y + (restocker ? 12 : 28 + (i / 3) * 20);
-            if (mx >= gx && mx < gx + 18 && my >= gy && my < gy + 18) {
-                // 非合成模式下，点击输入格子 = 断开该连接
-                if (!craftingActive && i < connections.size()) {
-                    FactoryPanelPosition pos = connections.get(i).from;
-                    if (pos != null) {
-                        sendIt(pos, false);  // removePos=该连接位置, clearPromises=false
-                        playButtonSound();
-                        return true;
-                    }
+        // Remove connections
+        if (!craftingActive)
+            for (int i = 0; i < connections.size(); i++) {
+                int inputX = x + 68 + (i % 3 * 20);
+                int inputY = y + 28 + (i / 3 * 20);
+                if (mouseX >= inputX && mouseX < inputX + 16 && mouseY >= inputY && mouseY < inputY + 16) {
+                    sendIt(connections.get(i).from, false);
+                    playButtonSound();
+                    return true;
                 }
             }
-        }
 
-        // --- 检查输出物品点击（仅配方模式） ---
-        // 输出物品在 (x+160, y+48)，18×18 区域
-        if (!restocker) {
-            int ox = x + 160;
-            int oy = y + 48;
-            // 点击物品本身（18×18 区域）= 数量 +1
-            if (mx >= ox && mx < ox + 18 && my >= oy && my < oy + 18) {
-                outputConfig.count = Mth.clamp(outputConfig.count + 1, 1, 64);
-                playButtonSound();
-                return true;
-            }
-            // 点击物品右侧（ox+19 到 ox+37，也是 18px 宽）= 数量 -1
-            // 这个区域虽然没有视觉元素，但作为减量热区
-            if (mx >= ox + 19 && mx < ox + 37 && my >= oy && my < oy + 18) {
-                outputConfig.count = Mth.clamp(outputConfig.count - 1, 1, 64);
-                playButtonSound();
-                return true;
-            }
-        }
-
-        // --- 清除承诺按钮区域（包裹箱位置） ---
-        // X: +68, Y: gaugeBottom-24, 16×16 检测区域
+        // Clear promises
         AllGuiTextures ct = restocker ? AllGuiTextures.FACTORY_GAUGE_RESTOCK : AllGuiTextures.FACTORY_GAUGE_RECIPE;
         int gaugeBottom = ct.getHeight() + AllGuiTextures.FACTORY_GAUGE_BOTTOM.getHeight();
-        int clearX = x + 68;
-        int clearY = y + gaugeBottom - 24;
-        if (mx >= clearX && mx < clearX + 16 && my >= clearY && my < clearY + 16) {
-            sendIt(null, true);  // removePos=null, clearPromises=true
+        int itemX = x + 68;
+        int itemY = y + gaugeBottom - 24;
+        if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
+            sendIt(null, true);
             playButtonSound();
             return true;
         }
 
-        // --- 红石重置区域（红石链路槽位） ---
-        // X: +9, Y: gaugeBottom-24, 16×16 检测区域
-        int rstX = x + 9;
-        int rstY = y + gaugeBottom - 24;
-        if (mx >= rstX && mx < rstX + 16 && my >= rstY && my < rstY + 16) {
+        // remove redstone connections
+        itemX = x + 9;
+        itemY = y + gaugeBottom - 24;
+        if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
             sendRedstoneReset = true;
             sendIt(null, false);
             playButtonSound();
             return true;
         }
 
-        return super.mouseClicked(mx, my, button);
+        return super.mouseClicked(mouseX, mouseY, pButton);
     }
 
-    /**
-     * 鼠标滚轮处理。
-     *
-     * <h3>滚动行为</h3>
-     * <ul>
-     *   <li>输入格子：调整该输入物品的数量（Shift+滚轮=±10，普通滚轮=±1），范围 0-64</li>
-     *   <li>输出物品：调整输出数量（Shift+滚轮=±10，普通滚轮=±1），范围 1-64</li>
-     *   <li>合成激活时：滚轮不做自定义处理（交给父类）</li>
-     * </ul>
-     *
-     * <h3>输出物品滚轮检测区域</h3>
-     * {@code ox-2 到 ox+20, oy-2 到 oy+20}，比 18×18 格子稍大（含 2px 容差），
-     * 使滚轮操作更加宽松易用。
-     */
     @Override
-    public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         int x = getGuiLeft();
         int y = getGuiTop();
 
-        // 合成激活时禁用自定义滚轮行为
+        if (addressBox.mouseScrolled(mouseX, mouseY, scrollX, scrollY))
+            return true;
+
         if (craftingActive)
-            return super.mouseScrolled(mx, my, scrollX, scrollY);
+            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
 
-        // --- 滚动输入格子 ---
-        // 遍历输入配置，找到鼠标所在的格子
         for (int i = 0; i < inputConfig.size(); i++) {
-            int gx = x + (restocker ? 88 : 68 + (i % 3) * 20);
-            int gy = y + (restocker ? 12 : 28 + (i / 3) * 20);
-            if (mx >= gx && mx < gx + 18 && my >= gy && my < gy + 18) {
-                BigItemStack bis = inputConfig.get(i);
-                // signum(scrollY) 返回 -1（向下滚）或 +1（向上滚）
-                // Shift 按下时步长为 10，否则为 1
-                int delta = (int) Math.signum(scrollY) * (hasShiftDown() ? 10 : 1);
-                bis.count = Mth.clamp(bis.count + delta, 0, 64);
+            int inputX = x + 68 + (i % 3 * 20);
+            int inputY = y + 26 + (i / 3 * 20);
+            if (mouseX >= inputX && mouseX < inputX + 16 && mouseY >= inputY && mouseY < inputY + 16) {
+                BigItemStack itemStack = inputConfig.get(i);
+                if (itemStack.stack.isEmpty())
+                    return true;
+                itemStack.count =
+                    Mth.clamp((int) (itemStack.count + Math.signum(scrollY) * (hasShiftDown() ? 10 : 1)), 1, 64);
                 return true;
             }
         }
 
-        // --- 滚动输出物品（仅配方模式） ---
-        // 检测区域比 18×18 稍大（含 2px 容差边界），方便操作
         if (!restocker) {
-            int ox = x + 160;
-            int oy = y + 48;
-            if (mx >= ox - 2 && mx < ox + 20 && my >= oy - 2 && my < oy + 20) {
-                int delta = (int) Math.signum(scrollY) * (hasShiftDown() ? 10 : 1);
-                outputConfig.count = Mth.clamp(outputConfig.count + delta, 1, 64);
+            int outputX = x + 160;
+            int outputY = y + 48;
+            if (mouseX >= outputX && mouseX < outputX + 16 && mouseY >= outputY && mouseY < outputY + 16) {
+                BigItemStack itemStack = outputConfig;
+                itemStack.count =
+                    Mth.clamp((int) (itemStack.count + Math.signum(scrollY) * (hasShiftDown() ? 10 : 1)), 1, 64);
                 return true;
             }
         }
 
-        return super.mouseScrolled(mx, my, scrollX, scrollY);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     // ==================== 键盘输入 ====================
