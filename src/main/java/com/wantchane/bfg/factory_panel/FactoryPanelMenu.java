@@ -65,6 +65,13 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 			for (int i = 0; i < Math.min(9, saved.size()); i++)
 				inventory.setStackInSlot(i, saved.get(i).copy());
 
+			// Clear items whose connections no longer exist
+			for (int i = 0; i < 9; i++) {
+				ItemStack s = inventory.getStackInSlot(i);
+				if (!s.isEmpty() && !isLinkedItem(s))
+					inventory.setStackInSlot(i, ItemStack.EMPTY);
+			}
+
 			// Merge new connections not in ghost grid into empty slots
 			for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
 				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
