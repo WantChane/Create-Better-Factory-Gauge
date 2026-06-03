@@ -6,4 +6,6 @@ import java.util.List;
 public interface GhostGridAccessor {
     List<ItemStack> bfg$getGhostGrid();
     void bfg$setGhostGrid(List<ItemStack> grid);
+    List<ItemStack> bfg$getCraftingBackup();
+    void bfg$setCraftingBackup(List<ItemStack> grid);
 }

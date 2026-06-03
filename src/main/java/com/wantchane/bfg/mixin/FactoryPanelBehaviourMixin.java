@@ -49,6 +49,19 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         bfg$ghostGrid = new ArrayList<>(grid);
     }
 
+    @Unique
+    private List<ItemStack> bfg$craftingBackup = new ArrayList<>();
+
+    @Unique
+    public List<ItemStack> bfg$getCraftingBackup() {
+        return bfg$craftingBackup;
+    }
+
+    @Unique
+    public void bfg$setCraftingBackup(List<ItemStack> grid) {
+        bfg$craftingBackup = new ArrayList<>(grid);
+    }
+
     /**
      * Replace HashMap with LinkedHashMap in constructor to preserve gauge connection insertion order.
      * Also initialize ghost grid with 9 empty slots.
