@@ -129,6 +129,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private boolean craftingActive;
 	/** 合成配料列表（激活合成时替换 inputGrid 显示） */
 	private List<BigItemStack> craftingIngredients;
+	/** 输入配置列表（连接→物品+数量），用于 sendIt() 索引查找 */
+	private List<BigItemStack> inputConfig;
 
 
 	public FactoryPanelScreen(FactoryPanelMenu menu, Inventory inv, Component title) {
@@ -137,6 +139,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		this.behaviour = menu.contentHolder;
 		this.restocker = behaviour.panelBE().restocker;
 		this.craftingActive = !behaviour.activeCraftingArrangement.isEmpty();
+		menu.craftingActive = this.craftingActive;
 		if (craftingActive) {
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
@@ -153,7 +156,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		outputConfig = new BigItemStack(behaviour.getFilter(), behaviour.recipeOutput);
 
 		// Build inputConfig for crafting recipe search
-		List<BigItemStack> inputConfig = connections.stream()
+		inputConfig = connections.stream()
 			.map(c -> {
 				FactoryPanelBehaviour b = FactoryPanelBehaviour.at(minecraft.level, c.from);
 				return b == null ? new BigItemStack(ItemStack.EMPTY, 0) : new BigItemStack(b.getFilter(), c.amount);
@@ -161,7 +164,11 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			.toList();
 		searchForCraftingRecipe(inputConfig);
 		if (availableCraftingRecipe == null) {
-			craftingActive = false;
+			if (craftingActive) {
+				craftingActive = false;
+				menu.craftingActive = false;
+				rebuildGhostInventory();
+			}
 		} else {
 			craftingIngredients = convertRecipeToPackageOrderContext(availableCraftingRecipe, inputConfig, false);
 		}
@@ -325,7 +332,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		super.containerTick();
 		if (connections.size() != behaviour.targetedBy.size()) {
 			updateConfigs();
-			rebuildGhostInventory();
+			if (!craftingActive)
+				rebuildGhostInventory();
 			init();
 		}
 		if (activateCraftingButton != null) {
@@ -597,6 +605,32 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				return true;
 		}
 
+		// Left-click on LAST instance of item in ghost slot: disconnect the gauge
+		if (!craftingActive && !restocker && pButton == 0 && getMenu().getCarried().isEmpty()) {
+			Slot slot = findSlot(mouseX, mouseY);
+			if (slot != null && slot.index >= 36 && slot.index < 45) {
+				int ghostIdx = slot.index - 36;
+				ItemStack clickedItem = menu.ghostInventory.getStackInSlot(ghostIdx);
+				if (!clickedItem.isEmpty()) {
+					long instanceCount = 0;
+					for (int i = 0; i < 9; i++) {
+						ItemStack s = menu.ghostInventory.getStackInSlot(i);
+						if (!s.isEmpty() && ItemStack.isSameItemSameComponents(s, clickedItem))
+							instanceCount++;
+					}
+					if (instanceCount == 1) {
+						FactoryPanelPosition toRemove = findConnectionForItem(clickedItem);
+						if (toRemove != null) {
+							menu.ghostInventory.setStackInSlot(ghostIdx, ItemStack.EMPTY);
+							sendIt(toRemove, false);
+							playButtonSound();
+							return true;
+						}
+					}
+				}
+			}
+		}
+
 		// Right-click on ghost slot to disconnect the matching connection
 		if (!craftingActive && !restocker && pButton == 1) {
 			Slot slot = findSlot(mouseX, mouseY);
@@ -606,6 +640,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				if (!clickedItem.isEmpty()) {
 					FactoryPanelPosition toRemove = findConnectionForItem(clickedItem);
 					if (toRemove != null) {
+						menu.ghostInventory.setStackInSlot(ghostIdx, ItemStack.EMPTY);
 						sendIt(toRemove, false);
 						playButtonSound();
 					}
@@ -715,29 +750,31 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		Map<FactoryPanelPosition, Integer> inputAmounts = new HashMap<>();
 
 		if (!craftingActive && !restocker) {
-			// Index-based 1:1 mapping: ghost slot[i] -> connection[i]
-			// Matches original Create FactoryPanelScreen pattern
-			for (int i = 0; i < connections.size() && i < 9; i++) {
-				ItemStack slotItem = menu.ghostInventory.getStackInSlot(i);
-				inputAmounts.put(connections.get(i).from, slotItem.isEmpty() ? 0 : slotItem.getCount());
+			// Aggregate ghost slot amounts per connection (free-form grid)
+			for (int c = 0; c < connections.size(); c++) {
+				BigItemStack cfg = inputConfig.get(c);
+				int total = 0;
+				if (!cfg.stack.isEmpty()) {
+					for (int s = 0; s < 9; s++) {
+						ItemStack ghostItem = menu.ghostInventory.getStackInSlot(s);
+						if (!ghostItem.isEmpty() && ItemStack.isSameItemSameComponents(ghostItem, cfg.stack))
+							total += ghostItem.getCount();
+					}
+				}
+				inputAmounts.put(connections.get(c).from, total);
 			}
 		} else if (craftingActive) {
 			for (int i = 0; i < connections.size(); i++) {
-				FactoryPanelConnection conn = connections.get(i);
-				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
-				if (source == null) continue;
-				ItemStack filter = source.getFilter();
-				int amount = (int) craftingIngredients.stream()
+				BigItemStack stackInConfig = inputConfig.get(i);
+				inputAmounts.put(connections.get(i).from, (int) craftingIngredients.stream()
 					.filter(ci -> !ci.stack.isEmpty()
-						&& ItemStack.isSameItemSameComponents(ci.stack, filter))
-					.count();
-				inputAmounts.put(conn.from, amount);
+						&& ItemStack.isSameItemSameComponents(ci.stack, stackInConfig.stack))
+					.count());
 			}
 		} else {
 			ItemStack restockStack = menu.ghostInventory.getStackInSlot(0);
-			if (!restockStack.isEmpty() && !connections.isEmpty()) {
+			if (!restockStack.isEmpty() && !connections.isEmpty())
 				inputAmounts.put(connections.get(0).from, restockStack.getCount());
-			}
 		}
 
 		List<ItemStack> craftingArrangement = craftingActive
@@ -772,6 +809,10 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 	private void onDelete() {
 		sendReset = true;
+		if (!restocker) {
+			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
+				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
+		}
 		sendIt(null, false);
 		onClose();
 	}
@@ -788,7 +829,14 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 	private void onActivateCrafting() {
 		craftingActive = !craftingActive;
+		menu.craftingActive = craftingActive;
 		if (craftingActive) {
+			// Save current ghost inventory to ghost grid before clearing
+			List<ItemStack> grid = new ArrayList<>();
+			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
+				grid.add(menu.ghostInventory.getStackInSlot(i).copy());
+			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
+
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
 			if (availableCraftingRecipe != null) {
@@ -837,25 +885,16 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	 * 从连接列表重建幽灵物品栏（用量 1 每格）。
 	 */
 	private void rebuildGhostInventory() {
-		if (restocker)
+		if (restocker || craftingActive)
 			return;
 
 		for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 			menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
 
-		int slot = 0;
-		for (FactoryPanelConnection conn : connections) {
-			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
-			if (source != null) {
-				ItemStack filter = source.getFilter();
-				if (!filter.isEmpty())
-					menu.ghostInventory.setStackInSlot(slot, filter.copyWithCount(conn.amount));
-			}
-			slot++;
-			if (slot >= 9)
-				break;
-		}
-
+		// Restore from persisted ghost grid
+		List<ItemStack> saved = ((GhostGridAccessor) behaviour).bfg$getGhostGrid();
+		for (int i = 0; i < Math.min(9, saved.size()); i++)
+			menu.ghostInventory.setStackInSlot(i, saved.get(i).copy());
 	}
 
 	/**

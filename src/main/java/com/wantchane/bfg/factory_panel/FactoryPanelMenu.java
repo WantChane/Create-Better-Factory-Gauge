@@ -12,6 +12,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -24,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
+
+	public boolean craftingActive;
 
 	public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
 		super(type, containerId, inv, buf);
@@ -61,6 +64,34 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 		if (hasSaved) {
 			for (int i = 0; i < Math.min(9, saved.size()); i++)
 				inventory.setStackInSlot(i, saved.get(i).copy());
+
+			// Merge new connections not in ghost grid into empty slots
+			for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
+				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
+				if (source == null)
+					continue;
+				ItemStack filter = source.getFilter();
+				if (filter.isEmpty())
+					continue;
+
+				boolean alreadyInGrid = false;
+				for (int i = 0; i < 9; i++) {
+					ItemStack s = inventory.getStackInSlot(i);
+					if (!s.isEmpty() && ItemStack.isSameItemSameComponents(s, filter)) {
+						alreadyInGrid = true;
+						break;
+					}
+				}
+				if (alreadyInGrid)
+					continue;
+
+				for (int i = 0; i < 9; i++) {
+					if (inventory.getStackInSlot(i).isEmpty()) {
+						inventory.setStackInSlot(i, filter.copyWithCount(1));
+						break;
+					}
+				}
+			}
 			return inventory;
 		}
 
@@ -97,13 +128,30 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 			for (int i = 0; i < 9; i++) {
 				int col = i % 3;
 				int row = i / 3;
-				addSlot(new SlotItemHandler(ghostInventory, i, 68 + col * 20, 28 + row * 20));
+				addSlot(new SlotItemHandler(ghostInventory, i, 68 + col * 20, 28 + row * 20) {
+					@Override
+					public boolean isActive() {
+						return !craftingActive;
+					}
+
+					@Override
+					public boolean mayPlace(ItemStack stack) {
+						return !craftingActive && super.mayPlace(stack);
+					}
+
+					@Override
+					public boolean mayPickup(Player player) {
+						return !craftingActive && super.mayPickup(player);
+					}
+				});
 			}
 		}
 	}
 
 	@Override
 	public ItemStack quickMoveStack(Player player, int index) {
+		if (craftingActive || contentHolder.panelBE().restocker)
+			return ItemStack.EMPTY;
 		if (index < 36) {
 			ItemStack stackToInsert = slots.get(index).getItem();
 			if (!isLinkedItem(stackToInsert))
@@ -125,6 +173,8 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	public boolean canDragTo(Slot slotIn) {
+		if (craftingActive || contentHolder.panelBE().restocker)
+			return false;
 		if (slotIn.container == ghostInventory) {
 			ItemStack carried = getCarried();
 			if (carried.isEmpty())
@@ -140,8 +190,18 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	}
 
 	@Override
+	public void clicked(int slotId, int dragType, ClickType clickTypeIn, Player player) {
+		if (slotId >= 0 && slotId < slots.size()) {
+			Slot slot = slots.get(slotId);
+			if ((craftingActive || contentHolder.panelBE().restocker) && slot.container == ghostInventory)
+				return;
+		}
+		super.clicked(slotId, dragType, clickTypeIn, player);
+	}
+
+	@Override
 	protected void saveData(FactoryPanelBehaviour behaviour) {
-		if (behaviour.panelBE().restocker)
+		if (behaviour.panelBE().restocker || craftingActive)
 			return;
 
 		List<ItemStack> grid = new ArrayList<>();
@@ -154,9 +214,6 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 		if (behaviour.getWorld().isClientSide()) {
 			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
 			PacketDistributor.sendToServer(new SyncGhostGridPayload(behaviour.getPanelPosition(), grid));
-		} else {
-			behaviour.blockEntity.sendData();
-			behaviour.blockEntity.setChanged();
 		}
 	}
 }
