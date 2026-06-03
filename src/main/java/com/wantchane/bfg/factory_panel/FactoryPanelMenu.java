@@ -175,25 +175,22 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	public boolean canDragTo(Slot slotIn) {
 		if (craftingActive || contentHolder.panelBE().restocker)
 			return false;
-		if (slotIn.container == ghostInventory) {
+		if (slotIn.index >= 36) {
 			ItemStack carried = getCarried();
 			if (carried.isEmpty())
 				return false;
-			for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
-				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
-				if (source != null && ItemStack.isSameItemSameComponents(source.getFilter(), carried))
-					return true;
-			}
-			return false;
+			return isLinkedItem(carried);
 		}
 		return super.canDragTo(slotIn);
 	}
 
 	@Override
 	public void clicked(int slotId, int dragType, ClickType clickTypeIn, Player player) {
-		if (slotId >= 0 && slotId < slots.size()) {
-			Slot slot = slots.get(slotId);
-			if ((craftingActive || contentHolder.panelBE().restocker) && slot.container == ghostInventory)
+		if (slotId >= 36) {
+			if (craftingActive || contentHolder.panelBE().restocker)
+				return;
+			ItemStack carried = getCarried();
+			if (!carried.isEmpty() && !isLinkedItem(carried))
 				return;
 		}
 		super.clicked(slotId, dragType, clickTypeIn, player);
