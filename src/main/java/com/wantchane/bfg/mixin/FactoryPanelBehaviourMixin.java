@@ -4,8 +4,6 @@ import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition;
-import com.simibubi.create.content.logistics.stockTicker.PackageOrder;
-import com.simibubi.create.content.logistics.stockTicker.PackageOrderWithCrafts;
 import com.simibubi.create.foundation.utility.CreateLang;
 
 import com.wantchane.bfg.factory_panel.GhostGridAccessor;
@@ -88,8 +86,9 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     }
 
     /**
-     * Sort PackageOrder items by gauge connection order when all connections share one network.
-     * Mirrors PR #10391: connectionOrder + orderedItems.sort()
+     * Replace aggregated connection items with per-slot ghost grid items in PackageOrder.
+     * Follows Redstone Requester pattern: each ghost slot = one BigItemStack with its count.
+     * Uses two-arg BigItemStack constructor — the one-arg constructor hardcodes count=1.
      */
     @ModifyArg(
         method = "tickRequests",
@@ -102,70 +101,17 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         if (self.targetedBy.isEmpty())
             return orderedItems;
 
-        UUID commonNetwork = null;
-        boolean sameNetwork = true;
-        for (FactoryPanelConnection conn : self.targetedBy.values()) {
-            FactoryPanelBehaviour source = FactoryPanelBehaviour.at(self.getWorld(), conn);
-            if (source == null)
-                continue;
-            if (commonNetwork == null) {
-                commonNetwork = source.network;
-            } else if (!commonNetwork.equals(source.network)) {
-                sameNetwork = false;
-                break;
-            }
-        }
-
-        if (!sameNetwork || commonNetwork == null)
-            return orderedItems;
-
-        Map<ItemStack, Integer> orderMap = new HashMap<>();
         List<ItemStack> ghostGrid = bfg$getGhostGrid();
-        for (int i = 0; i < ghostGrid.size(); i++) {
-            ItemStack item = ghostGrid.get(i);
-            if (!item.isEmpty()) {
-                ItemStack key = item.copyWithCount(1);
-                if (!orderMap.containsKey(key))
-                    orderMap.put(key, i);
-            }
+        List<BigItemStack> result = new ArrayList<>();
+        for (ItemStack item : ghostGrid) {
+            if (!item.isEmpty())
+                result.add(new BigItemStack(item, item.getCount()));
         }
 
-        if (orderMap.isEmpty())
-            return orderedItems;
+        if (!result.isEmpty())
+            return result;
 
-        List<BigItemStack> sorted = new ArrayList<>(orderedItems);
-        sorted.sort(Comparator.comparingInt(
-            bigStack -> orderMap.getOrDefault(bigStack.stack.copyWithCount(1), Integer.MAX_VALUE)
-        ));
-        return sorted;
-    }
-
-    /**
-     * Inject ghost grid ordering into PackageOrderWithCrafts when not in crafting mode.
-     * Packager uses orderedCrafts to arrange items within the package.
-     */
-    @ModifyArg(
-        method = "tickRequests",
-        at = @At(value = "INVOKE", target = "Lcom/simibubi/create/content/logistics/stockTicker/PackageOrderWithCrafts;<init>(Lcom/simibubi/create/content/logistics/stockTicker/PackageOrder;Ljava/util/List;)V"),
-        index = 1
-    )
-    private List<PackageOrderWithCrafts.CraftingEntry> bfg$injectGhostGridOrdering(
-        List<PackageOrderWithCrafts.CraftingEntry> orderedCrafts) {
-        if (!orderedCrafts.isEmpty())
-            return orderedCrafts;
-
-        List<ItemStack> ghostGrid = bfg$getGhostGrid();
-        boolean hasItems = false;
-        for (ItemStack s : ghostGrid) {
-            if (!s.isEmpty()) { hasItems = true; break; }
-        }
-        if (!hasItems)
-            return orderedCrafts;
-
-        List<BigItemStack> pattern = new ArrayList<>();
-        for (ItemStack item : ghostGrid)
-            pattern.add(new BigItemStack(item.copyWithCount(1)));
-        return List.of(new PackageOrderWithCrafts.CraftingEntry(new PackageOrder(pattern), 1));
+        return orderedItems;
     }
 
     /**
