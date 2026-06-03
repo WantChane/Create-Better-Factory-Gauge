@@ -1,9 +1,11 @@
 package com.wantchane.bfg.factory_panel;
 
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
+import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition;
-import com.simibubi.create.foundation.gui.menu.MenuBase;
+import com.simibubi.create.foundation.gui.menu.GhostItemMenu;
 import com.wantchane.bfg.BFGMenuTypes;
+import com.wantchane.bfg.network.SyncGhostGridPayload;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -11,49 +13,150 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
-public class FactoryPanelMenu extends MenuBase<FactoryPanelBehaviour> {
+import net.neoforged.neoforge.items.ItemStackHandler;
+import net.neoforged.neoforge.items.SlotItemHandler;
+import net.neoforged.neoforge.network.PacketDistributor;
 
-    public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
-        super(type, containerId, inv, buf);
-    }
+import java.util.ArrayList;
+import java.util.List;
 
-    public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, FactoryPanelBehaviour behaviour) {
-        super(type, containerId, inv, behaviour);
-    }
+public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
-    public static FactoryPanelMenu create(int containerId, Inventory inv, FactoryPanelBehaviour behaviour) {
-        return new FactoryPanelMenu(BFGMenuTypes.FACTORY_PANEL.get(), containerId, inv, behaviour);
-    }
+	public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
+		super(type, containerId, inv, buf);
+	}
 
-    @Override
-    protected FactoryPanelBehaviour createOnClient(RegistryFriendlyByteBuf buf) {
-        FactoryPanelPosition pos = FactoryPanelPosition.STREAM_CODEC.decode(buf);
-        ClientLevel level = Minecraft.getInstance().level;
-        return FactoryPanelBehaviour.at(level, pos);
-    }
+	public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, FactoryPanelBehaviour behaviour) {
+		super(type, containerId, inv, behaviour);
+	}
 
-    @Override
-    protected void initAndReadInventory(FactoryPanelBehaviour behaviour) {
-    }
+	public static FactoryPanelMenu create(int containerId, Inventory inv, FactoryPanelBehaviour behaviour) {
+		return new FactoryPanelMenu(BFGMenuTypes.FACTORY_PANEL.get(), containerId, inv, behaviour);
+	}
 
-    @Override
-    protected void addSlots() {
-        boolean restocker = contentHolder.panelBE().restocker;
-        int baseHeight = restocker ? 104 : 160;
-        // X+8, Y+18: texture internal padding — first slot visual in PLAYER_INVENTORY
-        // +4: gap between gauge bottom and player inventory
-        addPlayerSlots(16, baseHeight + 18 + 4);
-    }
+	@Override
+	protected FactoryPanelBehaviour createOnClient(RegistryFriendlyByteBuf buf) {
+		FactoryPanelPosition pos = FactoryPanelPosition.STREAM_CODEC.decode(buf);
+		ClientLevel level = Minecraft.getInstance().level;
+		return FactoryPanelBehaviour.at(level, pos);
+	}
 
+	@Override
+	protected ItemStackHandler createGhostInventory() {
+		boolean restocker = contentHolder.panelBE().restocker;
+		ItemStackHandler inventory = new ItemStackHandler(restocker ? 1 : 9);
+		if (restocker)
+			return inventory;
 
-    @Override
-    protected void saveData(FactoryPanelBehaviour behaviour) {
-    }
+		// Load from persisted ghost grid first
+		List<ItemStack> saved = ((GhostGridAccessor) contentHolder).bfg$getGhostGrid();
+		boolean hasSaved = false;
+		for (ItemStack s : saved) {
+			if (!s.isEmpty()) { hasSaved = true; break; }
+		}
 
-    @Override
-    public ItemStack quickMoveStack(Player player, int index) {
-        return ItemStack.EMPTY;
-    }
+		if (hasSaved) {
+			for (int i = 0; i < Math.min(9, saved.size()); i++)
+				inventory.setStackInSlot(i, saved.get(i).copy());
+			return inventory;
+		}
+
+		// Fallback: derive from connections (1:1 mapping, count = connection amount)
+		int slot = 0;
+		for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
+			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
+			if (source != null) {
+				ItemStack filter = source.getFilter();
+				if (!filter.isEmpty())
+					inventory.setStackInSlot(slot, filter.copyWithCount(conn.amount));
+			}
+			slot++;
+			if (slot >= 9)
+				break;
+		}
+		return inventory;
+	}
+
+	@Override
+	protected boolean allowRepeats() {
+		return true;
+	}
+
+	@Override
+	protected void addSlots() {
+		boolean restocker = contentHolder.panelBE().restocker;
+		int baseHeight = restocker ? 104 : 160;
+		addPlayerSlots(16, baseHeight + 18 + 4);
+
+		if (restocker) {
+			addSlot(new SlotItemHandler(ghostInventory, 0, 88, 12));
+		} else {
+			for (int i = 0; i < 9; i++) {
+				int col = i % 3;
+				int row = i / 3;
+				addSlot(new SlotItemHandler(ghostInventory, i, 68 + col * 20, 28 + row * 20));
+			}
+		}
+	}
+
+	@Override
+	public ItemStack quickMoveStack(Player player, int index) {
+		if (index < 36) {
+			ItemStack stackToInsert = slots.get(index).getItem();
+			if (!isLinkedItem(stackToInsert))
+				return ItemStack.EMPTY;
+		}
+		return super.quickMoveStack(player, index);
+	}
+
+	private boolean isLinkedItem(ItemStack stack) {
+		if (stack.isEmpty())
+			return false;
+		for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
+			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
+			if (source != null && ItemStack.isSameItemSameComponents(source.getFilter(), stack))
+				return true;
+		}
+		return false;
+	}
+
+	@Override
+	public boolean canDragTo(Slot slotIn) {
+		if (slotIn.container == ghostInventory) {
+			ItemStack carried = getCarried();
+			if (carried.isEmpty())
+				return false;
+			for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
+				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
+				if (source != null && ItemStack.isSameItemSameComponents(source.getFilter(), carried))
+					return true;
+			}
+			return false;
+		}
+		return super.canDragTo(slotIn);
+	}
+
+	@Override
+	protected void saveData(FactoryPanelBehaviour behaviour) {
+		if (behaviour.panelBE().restocker)
+			return;
+
+		List<ItemStack> grid = new ArrayList<>();
+		for (int i = 0; i < ghostInventory.getSlots(); i++)
+			grid.add(ghostInventory.getStackInSlot(i).copy());
+
+		while (grid.size() < 9)
+			grid.add(ItemStack.EMPTY);
+
+		if (behaviour.getWorld().isClientSide()) {
+			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
+			PacketDistributor.sendToServer(new SyncGhostGridPayload(behaviour.getPanelPosition(), grid));
+		} else {
+			behaviour.blockEntity.sendData();
+			behaviour.blockEntity.setChanged();
+		}
+	}
 }
