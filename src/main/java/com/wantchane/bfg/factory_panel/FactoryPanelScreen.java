@@ -1,5 +1,18 @@
 package com.wantchane.bfg.factory_panel;
 
+import static com.simibubi.create.foundation.gui.AllGuiTextures.FACTORY_GAUGE_BOTTOM;
+import static com.simibubi.create.foundation.gui.AllGuiTextures.FACTORY_GAUGE_RECIPE;
+import static com.simibubi.create.foundation.gui.AllGuiTextures.FACTORY_GAUGE_RESTOCK;
+import static com.simibubi.create.foundation.gui.AllGuiTextures.FROGPORT_SLOT;
+import static com.simibubi.create.foundation.gui.AllGuiTextures.PLAYER_INVENTORY;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllRecipeTypes;
 import com.simibubi.create.AllSoundEvents;
@@ -14,18 +27,20 @@ import com.simibubi.create.content.logistics.box.PackageStyles;
 import com.simibubi.create.content.trains.station.NoShadowFontWrapper;
 import com.simibubi.create.foundation.gui.AllGuiTextures;
 import com.simibubi.create.foundation.gui.AllIcons;
-import net.createmod.catnip.gui.element.GuiGameElement;
 import com.simibubi.create.foundation.gui.menu.AbstractSimiContainerScreen;
 import com.simibubi.create.foundation.gui.widget.IconButton;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.simibubi.create.foundation.utility.CreateLang;
 
+import net.createmod.catnip.gui.element.GuiGameElement;
 import net.createmod.catnip.platform.CatnipServices;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
@@ -34,106 +49,39 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapedRecipe;
-import net.minecraft.core.NonNullList;
 
+import net.minecraft.core.NonNullList;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.neoforged.neoforge.items.SlotItemHandler;
 
-import java.util.*;
-
-/**
- * 工厂仪表主界面 —— 包含玩家物品栏的容器屏幕。
- *
- * <h2>坐标系说明</h2>
- * 整个窗口的坐标原点由父类 {@code AbstractContainerScreen} 自动计算：
- * <ul>
- *   <li>{@code x = getGuiLeft()} —— 窗口左边缘在屏幕上的 X 像素坐标</li>
- *   <li>{@code y = getGuiTop()}  —— 窗口顶边缘在屏幕上的 Y 像素坐标</li>
- * </ul>
- * Minecraft 自动居中：{@code x = (屏幕宽度 - imageWidth) / 2}，{@code y = (屏幕高度 - imageHeight) / 2}。
- * imageWidth / imageHeight 由 {@link #setWindowSize(int, int)} 设定。
- * <b>所有渲染位置和点击判定都是 `x + 偏移量` / `y + 偏移量` 的形式。</b>
- * x 和 y 会随窗口大小变化自动重算，只需关心偏移量。
- *
- * <h2>贴图尺寸常量</h2>
- * <table>
- *   <tr><th>贴图</th><th>宽</th><th>高</th><th>用途</th></tr>
- *   <tr><td>FACTORY_GAUGE_RECIPE</td><td>192</td><td>96</td><td>配方模式主贴图</td></tr>
- *   <tr><td>FACTORY_GAUGE_RESTOCK</td><td>192</td><td>40</td><td>补货模式主贴图</td></tr>
- *   <tr><td>FACTORY_GAUGE_BOTTOM</td><td>200</td><td>64</td><td>底部贴图（地址框、按钮区域）</td></tr>
- *   <tr><td>PLAYER_INVENTORY</td><td>176</td><td>~108</td><td>玩家物品栏背景贴图</td></tr>
- * </table>
- *
- * <h2>窗口尺寸计算</h2>
- * <pre>
- *   baseHeight = 主贴图高 + 底部贴图高    // 配方模式 96+64=160，补货模式 40+64=104
- *   windowHeight = baseHeight + 玩家物品栏高  // 配方 160+108=268，补货 104+108=212
- *   windowWidth = 200（跟随 BOTTOM 贴图宽度）
- * </pre>
- * 玩家物品栏紧贴在仪表内容下方，无重叠。
- * 如需间距，将 windowHeight 改为 {@code baseHeight + playerInvHeight + 间距}。
- *
- * <h2>控件 Y 坐标规则</h2>
- * 底部栏控件（地址框、按钮等）位于底部贴图区域内，使用公式：
- * <pre>y + baseHeight - 偏移量</pre>
- * "距仪表内容底部向上 N 像素" 的意思。例如：
- * <ul>
- *   <li>{@code y + baseHeight - 51} → 距底部向上 51px（地址输入框）</li>
- *   <li>{@code y + baseHeight - 25} → 距底部向上 25px（确认/删除按钮）</li>
- *   <li>{@code y + baseHeight - 24} → 距底部向上 24px（承诺过期选择器、红石槽、包裹箱）</li>
- * </ul>
- * 注意：这里用的是 {@code baseHeight}（仪表内容高度，160 或 104），
- * 不是 {@code windowHeight}（含物品栏的窗口总高度，268 或 212）。
- * 因为控件属于仪表内容的一部分，和物品栏无关。
- *
- * <h2>参考</h2>
- * 本屏幕的布局参考了 Create 原版的 {@code FactoryPanelSetItemScreen}（位于
- * {@code com.simibubi.create.content.logistics.factoryBoard}），
- * 它同样继承 {@code AbstractSimiContainerScreen} 并包含玩家物品栏。
- */
 public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanelMenu> {
 
-	// ==================== 控件字段 ====================
+	// Widgets
 
-	/** 地址输入框 —— 底部贴图区域内，位于 (x+36, y+baseHeight-51)，尺寸 108×10 */
 	private AddressEditBox addressBox;
-	/** 确认按钮 —— 右下角，位于 (x+width-33, y+baseHeight-25) */
 	private IconButton confirmButton;
-	/** 删除/重置按钮 —— 确认按钮左侧，位于 (x+width-55, y+baseHeight-25) */
 	private IconButton deleteButton;
-	/** 新增输入按钮 —— 仅配方模式，左侧 (x+31, y+47) */
 	private IconButton newInputButton;
-	/** 重新定位按钮 —— 仅配方模式，新增按钮下方 (x+31, y+67) */
 	private IconButton relocateButton;
-	/** 激活合成按钮 —— 配方模式且检测到合成配方时出现，(x+31, y+27) */
 	private IconButton activateCraftingButton;
-	/** 承诺过期时间滚动选择器 —— (x+97, y+baseHeight-24)，尺寸 28×16 */
 	private ScrollInput promiseExpiration;
 
-	// ==================== 数据字段 ====================
+	// Data
 
-	/** 关联的 FactoryPanelBehaviour，数据来源 */
 	private final FactoryPanelBehaviour behaviour;
-	/** true=补货模式，false=配方模式。决定使用哪套贴图和布局 */
 	private final boolean restocker;
-	/** 发送重置标志（删除按钮触发） */
 	private boolean sendReset;
-	/** 发送红石重置标志 */
 	private boolean sendRedstoneReset;
-	/** 当前连接列表（从 behaviour.targetedBy 复制） */
 	private List<FactoryPanelConnection> connections;
-	/** 输出物品配置（过滤器物品 + 数量） */
 	private BigItemStack outputConfig;
-	/** 匹配到的合成配方，null 表示无匹配 */
 	private CraftingRecipe availableCraftingRecipe;
-	/** 合成配料列表（激活合成时替换 inputGrid 显示） */
 	private List<BigItemStack> craftingIngredients;
-
 
 	public FactoryPanelScreen(FactoryPanelMenu menu, Inventory inv, Component title) {
 		super(menu, inv, title);
 		minecraft = Minecraft.getInstance();
-		this.behaviour = menu.contentHolder;
-		this.restocker = behaviour.panelBE().restocker;
+		behaviour = menu.contentHolder;
+		restocker = behaviour.panelBE().restocker;
 		menu.craftingActive = !behaviour.activeCraftingArrangement.isEmpty();
 		if (menu.craftingActive) {
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
@@ -142,15 +90,11 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		updateConfigs();
 	}
 
-	/**
-	 * 刷新全部配置数据。当连接数量变化时（targetedBy 大小改变），
-	 * {@link #containerTick()} 会检测到并调用此方法 + {@link #init()} 重建界面。
-	 */
 	private void updateConfigs() {
 		connections = new ArrayList<>(behaviour.targetedBy.values());
 		outputConfig = new BigItemStack(behaviour.getFilter(), behaviour.recipeOutput);
 
-		var inputConfig = connections.stream()
+		List<BigItemStack> inputConfig = connections.stream()
 			.map(c -> {
 				FactoryPanelBehaviour b = FactoryPanelBehaviour.at(minecraft.level, c.from);
 				return b == null ? new BigItemStack(ItemStack.EMPTY, 0) : new BigItemStack(b.getFilter(), c.amount);
@@ -167,24 +111,25 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		}
 	}
 
-	/**
-	 * 搜索匹配的合成配方。
-	 */
 	private void searchForCraftingRecipe(List<BigItemStack> inputConfig) {
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.level == null) return;
+		if (mc.level == null)
+			return;
 		ItemStack outputItem = outputConfig.stack;
-		if (outputItem.isEmpty()) return;
-		if (behaviour.targetedBy.isEmpty()) return;
+		if (outputItem.isEmpty())
+			return;
+		if (behaviour.targetedBy.isEmpty())
+			return;
 
 		Set<ItemStack> inputItems = new HashSet<>();
-		for (BigItemStack bis : inputConfig) {
-			if (!bis.stack.isEmpty()) inputItems.add(bis.stack);
-		}
-		if (inputItems.isEmpty()) return;
+		for (BigItemStack bis : inputConfig)
+			if (!bis.stack.isEmpty())
+				inputItems.add(bis.stack);
+		if (inputItems.isEmpty())
+			return;
 
 		availableCraftingRecipe = mc.level.getRecipeManager()
-			.getAllRecipesFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING)
+			.getAllRecipesFor(RecipeType.CRAFTING)
 			.parallelStream()
 			.filter(holder -> !AllRecipeTypes.shouldIgnoreInAutomation(holder))
 			.filter(holder -> {
@@ -194,7 +139,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			.filter(holder -> {
 				Set<ItemStack> requiredItems = new HashSet<>();
 				for (Ingredient ingredient : holder.value().getIngredients()) {
-					if (ingredient.isEmpty()) continue;
+					if (ingredient.isEmpty())
+						continue;
 					boolean found = false;
 					for (BigItemStack bis : inputConfig) {
 						if (!bis.stack.isEmpty() && ingredient.test(bis.stack)) {
@@ -203,7 +149,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 							break;
 						}
 					}
-					if (!found) return false;
+					if (!found)
+						return false;
 				}
 				return requiredItems.size() >= inputItems.size();
 			})
@@ -212,11 +159,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			.orElse(null);
 	}
 
-	/**
-	 * 将合成配方转换为 3×3 格子展示格式。
-	 */
-	public static List<BigItemStack> convertRecipeToPackageOrderContext(
-			CraftingRecipe recipe, List<BigItemStack> inputConfig ){
+	public static List<BigItemStack> convertRecipeToPackageOrderContext(CraftingRecipe recipe,
+		List<BigItemStack> inputConfig) {
 		List<BigItemStack> result = new ArrayList<>();
 		BigItemStack empty = new BigItemStack(ItemStack.EMPTY, 1);
 		NonNullList<Ingredient> ingredients = recipe.getIngredients();
@@ -228,43 +172,41 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			width = shaped.getWidth();
 			height = shaped.getHeight();
 		}
-		if (height == 1) {
-			for (int i = 0; i < 3; i++) result.add(empty);
-		}
-		if (width == 1) result.add(empty);
+		if (height == 1)
+			for (int i = 0; i < 3; i++)
+				result.add(empty);
+		if (width == 1)
+			result.add(empty);
 
 		for (int i = 0; i < ingredients.size(); i++) {
 			Ingredient ingredient = ingredients.get(i);
 			BigItemStack matched = empty;
-			if (!ingredient.isEmpty()) {
-				for (BigItemStack wrapper : wrappers) {
+			if (!ingredient.isEmpty())
+				for (BigItemStack wrapper : wrappers)
 					if (wrapper.count > 0 && ingredient.test(wrapper.stack)) {
 						matched = new BigItemStack(wrapper.stack, 1);
 						break;
 					}
-				}
-			}
 			result.add(matched);
-			if (width < 3 && (i + 1) % width == 0) {
-				for (int j = 0; j < 3 - width; j++) {
-					if (result.size() < 9) result.add(empty);
-				}
-			}
+			if (width < 3 && (i + 1) % width == 0)
+				for (int j = 0; j < 3 - width; j++)
+					if (result.size() < 9)
+						result.add(empty);
 		}
-		while (result.size() < 9) result.add(empty);
+		while (result.size() < 9)
+			result.add(empty);
 		return result;
 	}
 
-	// ==================== 生命周期 ====================
+	//
 
 	@Override
 	protected void init() {
-		int width = AllGuiTextures.FACTORY_GAUGE_BOTTOM.getWidth();
-		AllGuiTextures contentTex = restocker ? AllGuiTextures.FACTORY_GAUGE_RESTOCK : AllGuiTextures.FACTORY_GAUGE_RECIPE;
-		int baseHeight = contentTex.getHeight() + AllGuiTextures.FACTORY_GAUGE_BOTTOM.getHeight();
-		int playerInvHeight = AllGuiTextures.PLAYER_INVENTORY.getHeight();
-		int windowHeight = baseHeight + 4 + playerInvHeight;
-		setWindowSize(width, windowHeight);
+		int sizeX = FACTORY_GAUGE_BOTTOM.getWidth();
+		AllGuiTextures contentTex = restocker ? FACTORY_GAUGE_RESTOCK : FACTORY_GAUGE_RECIPE;
+		int baseHeight = contentTex.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
+		int windowHeight = baseHeight + 4 + PLAYER_INVENTORY.getHeight();
+		setWindowSize(sizeX, windowHeight);
 		super.init();
 		clearWidgets();
 
@@ -273,8 +215,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		if (addressBox == null) {
 			String frogAddress = behaviour.getFrogAddress();
-			addressBox = new AddressEditBox(this, new NoShadowFontWrapper(font),
-				x + 36, y + baseHeight - 51, 108, 10, false, frogAddress);
+			addressBox = new AddressEditBox(this, new NoShadowFontWrapper(font), x + 36, y + baseHeight - 51, 108, 10,
+				false, frogAddress);
 			addressBox.setValue(behaviour.recipeAddress);
 			addressBox.setTextColor(0x555555);
 		}
@@ -282,31 +224,44 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		addressBox.setY(y + baseHeight - 51);
 		addRenderableWidget(addressBox);
 
-		confirmButton = new IconButton(x + width - 33, y + baseHeight - 25, AllIcons.I_CONFIRM);
+		confirmButton = new IconButton(x + sizeX - 33, y + baseHeight - 25, AllIcons.I_CONFIRM);
 		confirmButton.withCallback(this::onConfirm);
-		confirmButton.setToolTip(CreateLang.translateDirect("gui.factory_panel.save_and_close"));
+		confirmButton.setToolTip(CreateLang.translate("gui.factory_panel.save_and_close").component());
 		addRenderableWidget(confirmButton);
 
-		deleteButton = new IconButton(x + width - 55, y + baseHeight - 25, AllIcons.I_TRASH);
-		deleteButton.withCallback(this::onDelete);
-		deleteButton.setToolTip(CreateLang.translateDirect("gui.factory_panel.reset"));
+		deleteButton = new IconButton(x + sizeX - 55, y + baseHeight - 25, AllIcons.I_TRASH);
+		deleteButton.withCallback(() -> {
+			sendReset = true;
+			if (!restocker)
+				for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
+					menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
+			sendIt(null, false);
+			onClose();
+		});
+		deleteButton.setToolTip(CreateLang.translate("gui.factory_panel.reset").component());
 		addRenderableWidget(deleteButton);
 
-		promiseExpiration = new ScrollInput(x + 97, y + baseHeight - 24, 28, 16);
-		promiseExpiration.withRange(-1, 31);
-		promiseExpiration.titled(CreateLang.translateDirect("gui.factory_panel.promises_expire_title"));
+		promiseExpiration = new ScrollInput(x + 97, y + baseHeight - 24, 28, 16).withRange(-1, 31)
+			.titled(CreateLang.translate("gui.factory_panel.promises_expire_title").component());
 		promiseExpiration.setState(behaviour.promiseClearingInterval);
 		addRenderableWidget(promiseExpiration);
 
-		if (!restocker) {
-			newInputButton = new IconButton(x + 31, y + 47, AllIcons.I_ADD);
-			newInputButton.withCallback(this::onNewInput);
-			newInputButton.setToolTip(CreateLang.translateDirect("gui.factory_panel.connect_input"));
-			addRenderableWidget(newInputButton);
+		newInputButton = new IconButton(x + 31, y + 47, AllIcons.I_ADD);
+		newInputButton.withCallback(() -> {
+			FactoryPanelConnectionHandler.startConnection(behaviour);
+			minecraft.setScreen(null);
+		});
+		newInputButton.setToolTip(CreateLang.translate("gui.factory_panel.connect_input").component());
 
-			relocateButton = new IconButton(x + 31, y + 67, AllIcons.I_MOVE_GAUGE);
-			relocateButton.withCallback(this::onRelocate);
-			relocateButton.setToolTip(CreateLang.translateDirect("gui.factory_panel.relocate"));
+		relocateButton = new IconButton(x + 31, y + 67, AllIcons.I_MOVE_GAUGE);
+		relocateButton.withCallback(() -> {
+			FactoryPanelConnectionHandler.startRelocating(behaviour);
+			minecraft.setScreen(null);
+		});
+		relocateButton.setToolTip(CreateLang.translate("gui.factory_panel.relocate").component());
+
+		if (!restocker) {
+			addRenderableWidget(newInputButton);
 			addRenderableWidget(relocateButton);
 		}
 
@@ -314,7 +269,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		if (availableCraftingRecipe != null) {
 			activateCraftingButton = new IconButton(x + 31, y + 27, AllIcons.I_3x3);
 			activateCraftingButton.withCallback(this::onActivateCrafting);
-			activateCraftingButton.setToolTip(CreateLang.translateDirect("gui.factory_panel.activate_crafting"));
+			activateCraftingButton.setToolTip(CreateLang.translate("gui.factory_panel.activate_crafting").component());
 			addRenderableWidget(activateCraftingButton);
 		}
 	}
@@ -328,73 +283,63 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				rebuildGhostInventory();
 			init();
 		}
-		if (activateCraftingButton != null) {
+		if (activateCraftingButton != null)
 			activateCraftingButton.green = menu.craftingActive;
-		}
-		if (addressBox != null) addressBox.tick();
-		if (promiseExpiration != null) {
-			promiseExpiration.titled(
-				promiseExpiration.getState() == -1
-					? CreateLang.translateDirect("gui.factory_panel.promises_do_not_expire")
-					: CreateLang.translateDirect("gui.factory_panel.promises_expire_title"));
-		}
+		addressBox.tick();
+		promiseExpiration.titled(CreateLang
+			.translate(promiseExpiration.getState() == -1 ? "gui.factory_panel.promises_do_not_expire"
+				: "gui.factory_panel.promises_expire_title")
+			.component());
 	}
 
-	// ==================== 渲染 ====================
+	//
 
 	@Override
 	protected void renderBg(GuiGraphics graphics, float partialTicks, int mouseX, int mouseY) {
 		int x = getGuiLeft();
 		int y = getGuiTop();
 
-		AllGuiTextures contentTex = restocker
-			? AllGuiTextures.FACTORY_GAUGE_RESTOCK
-			: AllGuiTextures.FACTORY_GAUGE_RECIPE;
-
-		if (restocker) {
-			AllGuiTextures.FACTORY_GAUGE_RECIPE.render(graphics, x, y - 16);
-		}
+		AllGuiTextures contentTex = restocker ? FACTORY_GAUGE_RESTOCK : FACTORY_GAUGE_RECIPE;
+		if (restocker)
+			FACTORY_GAUGE_RECIPE.render(graphics, x, y - 16);
 
 		contentTex.render(graphics, x, y);
 
-		int baseHeight = contentTex.getHeight() + AllGuiTextures.FACTORY_GAUGE_BOTTOM.getHeight();
-		AllGuiTextures.FACTORY_GAUGE_BOTTOM.render(graphics, x, y + contentTex.getHeight());
+		int baseHeight = contentTex.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
+		FACTORY_GAUGE_BOTTOM.render(graphics, x, y + contentTex.getHeight());
 
 		renderPlayerInventory(graphics, x + 8, y + baseHeight + 4);
 
-		Component title = CreateLang.translateDirect(
-			restocker ? "gui.factory_panel.title_as_restocker" : "gui.factory_panel.title_as_recipe");
-		graphics.drawString(font, title,
-			x + 97 - font.width(title) / 2,
-			y + (restocker ? -12 : 4),
-			0x3D3D3D, false);
+		Component title = CreateLang
+			.translate(restocker ? "gui.factory_panel.title_as_restocker" : "gui.factory_panel.title_as_recipe")
+			.component();
+		graphics.drawString(font, title, x + 97 - font.width(title) / 2, y + (restocker ? -12 : 4), 0x3D3C48, false);
 
 		int previewY = restocker ? 0 : 55;
 		graphics.pose().pushPose();
 		graphics.pose().translate(0, previewY, 0);
 		GuiGameElement.of(AllBlocks.FACTORY_GAUGE.asStack())
-			.scale(4.0d)
+			.scale(4.0)
 			.at(0, 0, -200)
 			.render(graphics, x + 195, y + 55);
 
 		if (!behaviour.getFilter().isEmpty()) {
 			GuiGameElement.of(behaviour.getFilter())
-				.scale(1.625d)
+				.scale(1.625)
 				.at(0, 0, 100)
 				.render(graphics, x + 214, y + 68);
 		}
 		graphics.pose().popPose();
 
-		if (!restocker) {
+		if (!restocker)
 			renderOutputItem(graphics, outputConfig, mouseX, mouseY);
-		}
 
 		renderInputGrid(graphics, mouseX, mouseY);
 
 		if (!behaviour.targetedByLinks.isEmpty()) {
 			int linkX = x + 9;
 			int linkY = y + baseHeight - 24;
-			AllGuiTextures.FROGPORT_SLOT.render(graphics, linkX - 1, linkY - 1);
+			FROGPORT_SLOT.render(graphics, linkX - 1, linkY - 1);
 			graphics.renderItem(AllBlocks.REDSTONE_LINK.asStack(), linkX, linkY);
 		}
 
@@ -402,23 +347,16 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int boxY = y + baseHeight - 24;
 		ItemStack defaultBox = PackageStyles.getDefaultBox();
 		graphics.renderItem(defaultBox, boxX, boxY);
-		graphics.renderItemDecorations(font, defaultBox, boxX, boxY,
-			String.valueOf(behaviour.getPromised()));
+		graphics.renderItemDecorations(font, defaultBox, boxX, boxY, String.valueOf(behaviour.getPromised()));
 
 		int state = promiseExpiration.getState();
 		graphics.drawString(font,
 			Component.literal(state == -1 ? " /" : state == 0 ? "30s" : state + "m"),
-			promiseExpiration.getX() + 3, promiseExpiration.getY() + 4,
-			0xffeeeeee, true);
+			promiseExpiration.getX() + 3, promiseExpiration.getY() + 4, 0xffeeeeee, true);
 	}
 
-	// ==================== 物品格子渲染 ====================
+	//
 
-	/**
-	 * 渲染 3×3 输入格子。
-	 * 非合成模式：物品由 GhostItemMenu 的 SlotItemHandler 自动渲染，此处只渲染合成配料或空提示。
-	 * 合成模式：手动渲染 craftingIngredients。
-	 */
 	private void renderInputGrid(GuiGraphics graphics, int mouseX, int mouseY) {
 		int slot = 0;
 
@@ -426,18 +364,20 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			for (BigItemStack itemStack : craftingIngredients)
 				renderInputItem(graphics, slot++, itemStack, mouseX, mouseY);
 		} else if (!restocker) {
-			// Ghost slots auto-render items. Render tooltip for empty slots.
 			if (connections.isEmpty()) {
 				int inputX = getGuiLeft() + 68;
 				int inputY = getGuiTop() + 28;
 				if (mouseY > inputY && mouseY < inputY + 60 && mouseX > inputX && mouseX < inputX + 60)
 					graphics.renderComponentTooltip(font,
-						List.of(CreateLang.translateDirect("gui.factory_panel.unconfigured_input")
-							.withStyle(ChatFormatting.GRAY),
-							CreateLang.translateDirect("gui.factory_panel.unconfigured_input_tip")
-								.withStyle(ChatFormatting.GRAY),
-							CreateLang.translateDirect("gui.factory_panel.unconfigured_input_tip_1")
-								.withStyle(ChatFormatting.GRAY)),
+						List.of(CreateLang.translate("gui.factory_panel.unconfigured_input")
+							.color(ScrollInput.HEADER_RGB)
+							.component(),
+							CreateLang.translate("gui.factory_panel.unconfigured_input_tip")
+								.style(ChatFormatting.GRAY)
+								.component(),
+							CreateLang.translate("gui.factory_panel.unconfigured_input_tip_1")
+								.style(ChatFormatting.GRAY)
+								.component()),
 						mouseX, mouseY);
 			}
 		}
@@ -458,41 +398,49 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			return;
 
 		if (menu.craftingActive) {
-			graphics.renderComponentTooltip(font, List.of(
-				CreateLang.translateDirect("gui.factory_panel.crafting_input"),
-				CreateLang.translateDirect("gui.factory_panel.crafting_input_tip")
-					.withStyle(ChatFormatting.GRAY),
-				CreateLang.translateDirect("gui.factory_panel.crafting_input_tip_1")
-					.withStyle(ChatFormatting.GRAY)),
+			graphics.renderComponentTooltip(font,
+				List.of(CreateLang.translate("gui.factory_panel.crafting_input")
+					.color(ScrollInput.HEADER_RGB)
+					.component(),
+					CreateLang.translate("gui.factory_panel.crafting_input_tip")
+						.style(ChatFormatting.GRAY)
+						.component(),
+					CreateLang.translate("gui.factory_panel.crafting_input_tip_1")
+						.style(ChatFormatting.GRAY)
+						.component()),
 				mouseX, mouseY);
 			return;
 		}
 
 		if (itemStack.stack.isEmpty()) {
-			graphics.renderComponentTooltip(font, List.of(
-				CreateLang.translateDirect("gui.factory_panel.empty_panel"),
-				CreateLang.translateDirect("gui.factory_panel.left_click_disconnect")
-					.withStyle(ChatFormatting.DARK_GRAY)
-					.withStyle(ChatFormatting.ITALIC)),
+			graphics.renderComponentTooltip(font, List.of(CreateLang.translate("gui.factory_panel.empty_panel")
+				.color(ScrollInput.HEADER_RGB)
+				.component(),
+				CreateLang.translate("gui.factory_panel.left_click_disconnect")
+					.style(ChatFormatting.DARK_GRAY)
+					.style(ChatFormatting.ITALIC)
+					.component()),
 				mouseX, mouseY);
 			return;
 		}
 
 		if (restocker) {
-			graphics.renderComponentTooltip(font, List.of(
-				CreateLang.translateDirect("gui.factory_panel.sending_item",
-					itemStack.stack.getHoverName().getString()),
-				CreateLang.translateDirect("gui.factory_panel.sending_item_tip")
-					.withStyle(ChatFormatting.GRAY),
-				CreateLang.translateDirect("gui.factory_panel.sending_item_tip_1")
-					.withStyle(ChatFormatting.GRAY)),
+			graphics.renderComponentTooltip(font,
+				List.of(CreateLang.translate("gui.factory_panel.sending_item", CreateLang.itemName(itemStack.stack)
+					.string())
+					.color(ScrollInput.HEADER_RGB)
+					.component(),
+					CreateLang.translate("gui.factory_panel.sending_item_tip")
+						.style(ChatFormatting.GRAY)
+						.component(),
+					CreateLang.translate("gui.factory_panel.sending_item_tip_1")
+						.style(ChatFormatting.GRAY)
+						.component()),
 				mouseX, mouseY);
+			return;
 		}
 	}
 
-	/**
-	 * 渲染每格请求数量的角标（类似红石请求器 renderForeground）。
-	 */
 	@Override
 	protected void renderForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
 		super.renderForeground(graphics, mouseX, mouseY, partialTicks);
@@ -509,10 +457,9 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				continue;
 			int slotX = x + 68 + (i % 3 * 20);
 			int slotY = y + 28 + (i / 3 * 20);
-			int amt = stack.getCount();
 			graphics.pose().pushPose();
 			graphics.pose().translate(0, 0, 100);
-			graphics.renderItemDecorations(font, stack, slotX, slotY, "" + amt);
+			graphics.renderItemDecorations(font, stack, slotX, slotY, "" + stack.getCount());
 			graphics.pose().popPose();
 		}
 	}
@@ -526,19 +473,20 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		if (slotIndex >= 9)
 			return super.getTooltipFromContainerItem(stack);
 
-		int amt = stack.getCount();
 		if (stack.isEmpty())
 			return super.getTooltipFromContainerItem(stack);
 
 		return List.of(
-			CreateLang.translateDirect("gui.factory_panel.sending_item",
-				stack.getHoverName().getString() + " x" + amt),
-			CreateLang.translateDirect("gui.factory_panel.scroll_to_change_amount")
-				.withStyle(ChatFormatting.DARK_GRAY)
-				.withStyle(ChatFormatting.ITALIC),
-			CreateLang.translateDirect("gui.factory_panel.left_click_disconnect")
-				.withStyle(ChatFormatting.DARK_GRAY)
-				.withStyle(ChatFormatting.ITALIC));
+			CreateLang.translate("gui.factory_panel.sending_item",
+				stack.getHoverName().getString() + " x" + stack.getCount()).component(),
+			CreateLang.translate("gui.factory_panel.scroll_to_change_amount")
+				.style(ChatFormatting.DARK_GRAY)
+				.style(ChatFormatting.ITALIC)
+				.component(),
+			CreateLang.translate("gui.factory_panel.left_click_disconnect")
+				.style(ChatFormatting.DARK_GRAY)
+				.style(ChatFormatting.ITALIC)
+				.component());
 	}
 
 	private void renderOutputItem(GuiGraphics graphics, BigItemStack bigStack, int mouseX, int mouseY) {
@@ -549,25 +497,28 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		if (mouseX >= outputX - 1 && mouseX < outputX - 1 + 18 && mouseY >= outputY - 1
 			&& mouseY < outputY - 1 + 18) {
-			MutableComponent c1 = CreateLang.translateDirect(
-				"gui.factory_panel.expected_output",
-				CreateLang.itemName(outputConfig.stack)
+			MutableComponent c1 = CreateLang
+				.translate("gui.factory_panel.expected_output", CreateLang.itemName(outputConfig.stack)
 					.add(CreateLang.text(" x" + outputConfig.count))
-					.string());
-			MutableComponent c2 = CreateLang.translateDirect("gui.factory_panel.expected_output_tip")
-				.withStyle(ChatFormatting.GRAY);
-			MutableComponent c3 = CreateLang.translateDirect("gui.factory_panel.expected_output_tip_1")
-				.withStyle(ChatFormatting.GRAY);
-			MutableComponent c4 = CreateLang.translateDirect("gui.factory_panel.expected_output_tip_2")
-				.withStyle(ChatFormatting.DARK_GRAY)
-				.withStyle(ChatFormatting.ITALIC);
-			graphics.renderComponentTooltip(font,
-				menu.craftingActive ? List.of(c1, c2, c3) : List.of(c1, c2, c3, c4),
+					.string())
+				.color(ScrollInput.HEADER_RGB)
+				.component();
+			MutableComponent c2 = CreateLang.translate("gui.factory_panel.expected_output_tip")
+				.style(ChatFormatting.GRAY)
+				.component();
+			MutableComponent c3 = CreateLang.translate("gui.factory_panel.expected_output_tip_1")
+				.style(ChatFormatting.GRAY)
+				.component();
+			MutableComponent c4 = CreateLang.translate("gui.factory_panel.expected_output_tip_2")
+				.style(ChatFormatting.DARK_GRAY)
+				.style(ChatFormatting.ITALIC)
+				.component();
+			graphics.renderComponentTooltip(font, menu.craftingActive ? List.of(c1, c2, c3) : List.of(c1, c2, c3, c4),
 				mouseX, mouseY);
 		}
 	}
 
-	// ==================== 鼠标交互 ====================
+	//
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int pButton) {
@@ -577,17 +528,18 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int x = getGuiLeft();
 		int y = getGuiTop();
 
-		// Validate ghost slot placement: only linked items allowed
+		// Only linked items can be placed in ghost slots
 		if (!menu.craftingActive && !restocker && !getMenu().getCarried().isEmpty()) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45) {
 				if (!menu.isLinkedItem(getMenu().getCarried())) {
 					if (minecraft.player != null) {
 						minecraft.player.displayClientMessage(
-							CreateLang.translateDirect("gui.factory_panel.unlinked_item")
-								.withStyle(ChatFormatting.RED),
+							CreateLang.translate("gui.factory_panel.unlinked_item").style(ChatFormatting.RED)
+								.component(),
 							true);
-						AllSoundEvents.DENY.playAt(minecraft.player.level(), minecraft.player.blockPosition(), 1, 1, false);
+						AllSoundEvents.DENY.playAt(minecraft.player.level(), minecraft.player.blockPosition(), 1, 1,
+							false);
 					}
 					return true;
 				}
@@ -601,7 +553,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				return true;
 		}
 
-		// Left-click on LAST instance of item in ghost slot: disconnect the gauge
+		// Left-click last instance of an item: disconnect the connection
 		if (!menu.craftingActive && !restocker && pButton == 0 && getMenu().getCarried().isEmpty()) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45) {
@@ -627,7 +579,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			}
 		}
 
-		// Right-click on ghost slot to disconnect the matching connection
+		// Right-click ghost slot: disconnect the connection
 		if (!menu.craftingActive && !restocker && pButton == 1) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45) {
@@ -645,9 +597,9 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			}
 		}
 
-		// Promise clear (bottom bar box area)
-		AllGuiTextures ct = restocker ? AllGuiTextures.FACTORY_GAUGE_RESTOCK : AllGuiTextures.FACTORY_GAUGE_RECIPE;
-		int gaugeBottom = ct.getHeight() + AllGuiTextures.FACTORY_GAUGE_BOTTOM.getHeight();
+		// Promise clear
+		AllGuiTextures ct = restocker ? FACTORY_GAUGE_RESTOCK : FACTORY_GAUGE_RECIPE;
+		int gaugeBottom = ct.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
 		int itemX = x + 68;
 		int itemY = y + gaugeBottom - 24;
 		if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
@@ -693,15 +645,12 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 					return true;
 				}
 			}
-		}
 
-		if (!restocker) {
 			int outputX = x + 160;
 			int outputY = y + 48;
 			if (mouseX >= outputX && mouseX < outputX + 16 && mouseY >= outputY && mouseY < outputY + 16) {
-				BigItemStack itemStack = outputConfig;
-				itemStack.count =
-					Mth.clamp((int) (itemStack.count + Math.signum(scrollY) * (hasShiftDown() ? 10 : 1)), 1, 64);
+				outputConfig.count = Mth
+					.clamp((int) (outputConfig.count + Math.signum(scrollY) * (hasShiftDown() ? 10 : 1)), 1, 64);
 				return true;
 			}
 		}
@@ -709,7 +658,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
 	}
 
-	// ==================== 键盘输入 ====================
+	//
 
 	@Override
 	public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -725,7 +674,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		return super.charTyped(codePoint, modifiers);
 	}
 
-	// ==================== 关闭与网络发包 ====================
+	//
 
 	@Override
 	public void removed() {
@@ -734,19 +683,15 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	}
 
 	private void playButtonSound() {
-		Minecraft.getInstance().getSoundManager()
-			.play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
-				net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), 1.0f, 0.25f));
+		Minecraft.getInstance()
+			.getSoundManager()
+			.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f, 0.25f));
 	}
 
-	/**
-	 * 构建并发送配置数据包到服务器。
-	 */
 	private void sendIt(FactoryPanelPosition removePos, boolean clearPromises) {
 		Map<FactoryPanelPosition, Integer> inputAmounts = new HashMap<>();
 
 		if (!menu.craftingActive && !restocker) {
-			// Aggregate ghost slot amounts per connection (free-form grid)
 			for (FactoryPanelConnection conn : connections) {
 				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
 				if (source == null)
@@ -771,8 +716,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				if (filter.isEmpty())
 					continue;
 				int count = (int) craftingIngredients.stream()
-					.filter(ci -> !ci.stack.isEmpty()
-						&& ItemStack.isSameItemSameComponents(ci.stack, filter))
+					.filter(ci -> !ci.stack.isEmpty() && ItemStack.isSameItemSameComponents(ci.stack, filter))
 					.count();
 				inputAmounts.put(conn.from, count);
 			}
@@ -786,22 +730,13 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			? craftingIngredients.stream().map(bis -> bis.stack).toList()
 			: List.of();
 
-		FactoryPanelConfigurationPacket packet = new FactoryPanelConfigurationPacket(
-			behaviour.getPanelPosition(),
-			addressBox.getValue(),
-			inputAmounts,
-			craftingArrangement,
-			outputConfig.count,
-			promiseExpiration.getState(),
-			removePos,
-			clearPromises,
-			sendReset,
-			sendRedstoneReset
-		);
+		FactoryPanelConfigurationPacket packet = new FactoryPanelConfigurationPacket(behaviour.getPanelPosition(),
+			addressBox.getValue(), inputAmounts, craftingArrangement, outputConfig.count, promiseExpiration.getState(),
+			removePos, clearPromises, sendReset, sendRedstoneReset);
 		CatnipServices.NETWORK.sendToServer(packet);
 	}
 
-	// ==================== 按钮回调 ====================
+	// Button callbacks
 
 	private void onConfirm() {
 		String address = addressBox.getValue();
@@ -812,30 +747,9 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		onClose();
 	}
 
-	private void onDelete() {
-		sendReset = true;
-		if (!restocker) {
-			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
-				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
-		}
-		sendIt(null, false);
-		onClose();
-	}
-
-	private void onNewInput() {
-		FactoryPanelConnectionHandler.startConnection(behaviour);
-		minecraft.setScreen(null);
-	}
-
-	private void onRelocate() {
-		FactoryPanelConnectionHandler.startRelocating(behaviour);
-		minecraft.setScreen(null);
-	}
-
 	private void onActivateCrafting() {
 		menu.craftingActive = !menu.craftingActive;
 		if (menu.craftingActive) {
-			// Save current ghost inventory to ghost grid before clearing
 			List<ItemStack> grid = new ArrayList<>();
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				grid.add(menu.ghostInventory.getStackInSlot(i).copy());
@@ -843,23 +757,16 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
-			if (availableCraftingRecipe != null) {
-				outputConfig.count = availableCraftingRecipe
-					.getResultItem(minecraft.level.registryAccess())
-					.getCount();
-			}
+			if (availableCraftingRecipe != null)
+				outputConfig.count = availableCraftingRecipe.getResultItem(minecraft.level.registryAccess()).getCount();
 		} else {
 			rebuildGhostInventory();
 		}
 		init();
 	}
 
-	// ==================== 辅助方法 ====================
+	//
 
-
-	/**
-	 * 根据幽灵槽中的物品，找到首个匹配的连接来源位置（用于断开连接）。
-	 */
 	private FactoryPanelPosition findConnectionForItem(ItemStack item) {
 		for (FactoryPanelConnection conn : connections) {
 			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
@@ -869,9 +776,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		return null;
 	}
 
-	/**
-	 * 从连接列表重建幽灵物品栏（用量 1 每格）。
-	 */
 	private void rebuildGhostInventory() {
 		if (restocker || menu.craftingActive)
 			return;
@@ -879,17 +783,14 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 			menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
 
-			List<ItemStack> saved = ((GhostGridAccessor) behaviour).bfg$getGhostGrid();
+		List<ItemStack> saved = ((GhostGridAccessor) behaviour).bfg$getGhostGrid();
 
 		for (int i = 0; i < Math.min(9, saved.size()); i++)
 			menu.ghostInventory.setStackInSlot(i, saved.get(i).copy());
 
-			menu.clearUnlinkedItems(menu.ghostInventory);
+		menu.clearUnlinkedItems(menu.ghostInventory);
 	}
 
-	/**
-	 * 在给定坐标处查找槽位，返回 null 表示未命中任何槽位。
-	 */
 	private Slot findSlot(double mouseX, double mouseY) {
 		for (Slot slot : menu.slots) {
 			if (mouseX >= slot.x + getGuiLeft() && mouseX < slot.x + getGuiLeft() + 16
