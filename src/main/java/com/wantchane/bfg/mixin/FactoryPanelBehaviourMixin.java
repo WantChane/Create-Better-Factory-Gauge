@@ -2,8 +2,7 @@ package com.wantchane.bfg.mixin;
 
 import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
-import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection;
-import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition;
+
 import com.simibubi.create.foundation.utility.CreateLang;
 
 import com.wantchane.bfg.factory_panel.GhostGridAccessor;
@@ -60,29 +59,10 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         bfg$craftingBackup = new ArrayList<>(grid);
     }
 
-    /**
-     * Replace HashMap with LinkedHashMap in constructor to preserve gauge connection insertion order.
-     * Also initialize ghost grid with 9 empty slots.
-     * Mirrors PR #10391: targetedBy = new LinkedHashMap<>()
-     */
     @Inject(method = "<init>", at = @At("TAIL"))
-    private void bfg$useLinkedHashMapInInit(CallbackInfo ci) {
-        Map<FactoryPanelPosition, FactoryPanelConnection> original = bfg$self().targetedBy;
-        Map<FactoryPanelPosition, FactoryPanelConnection> ordered = new LinkedHashMap<>();
-        ordered.putAll(original);
-        bfg$self().targetedBy = ordered;
-
+    private void bfg$initGhostGrid(CallbackInfo ci) {
         for (int i = 0; i < 9; i++)
             bfg$ghostGrid.add(ItemStack.EMPTY);
-    }
-
-    /**
-     * Replace HashMap with LinkedHashMap in disable() to preserve insertion order on reset.
-     * Mirrors PR #10391: targetedBy = new LinkedHashMap<>()
-     */
-    @Inject(method = "disable", at = @At("TAIL"))
-    private void bfg$useLinkedHashMapInDisable(CallbackInfo ci) {
-        bfg$self().targetedBy = new LinkedHashMap<>();
     }
 
     /**
