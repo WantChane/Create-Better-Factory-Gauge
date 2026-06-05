@@ -31,6 +31,7 @@ import com.simibubi.create.foundation.gui.menu.AbstractSimiContainerScreen;
 import com.simibubi.create.foundation.gui.widget.IconButton;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.simibubi.create.foundation.utility.CreateLang;
+import com.wantchane.bfg.compat.CALCompatHelper;
 
 import net.createmod.catnip.gui.element.GuiGameElement;
 import net.createmod.catnip.platform.CatnipServices;
@@ -40,6 +41,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
@@ -65,6 +67,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private IconButton relocateButton;
 	private IconButton activateCraftingButton;
 	private ScrollInput promiseExpiration;
+	private ScrollInput calPromiseLimit;
+	private ScrollInput calAdditionalStock;
 
 	// Data
 
@@ -272,6 +276,76 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			activateCraftingButton.setToolTip(CreateLang.translate("gui.factory_panel.activate_crafting").component());
 			addRenderableWidget(activateCraftingButton);
 		}
+		if (CALCompatHelper.isLoaded()) {
+			if (CALCompatHelper.isPromiseLimitsEnabled()) {
+				calPromiseLimit = new ScrollInput(x + 68, y + windowHeight + 1, 56, 16)
+					.withRange(-1, restocker ? 64 * 100 * 20 : 1000);
+				if (restocker)
+					calPromiseLimit = calPromiseLimit.withShiftStep(behaviour.getFilter().getMaxStackSize());
+				else
+					calPromiseLimit = calPromiseLimit.withShiftStep(10);
+				calPromiseLimit.setState(CALCompatHelper.getPromiseLimit(behaviour));
+				calUpdatePromiseLimitLabel();
+				addRenderableWidget(calPromiseLimit);
+			}
+			if (restocker && CALCompatHelper.isAdditionalStockEnabled()) {
+				int maxSize = behaviour.getFilter().getMaxStackSize();
+				calAdditionalStock = new ScrollInput(x + 4, y + windowHeight - 24, 47, 16)
+					.withRange(0, 1 + maxSize * 100)
+					.withStepFunction(c -> {
+						if (!c.shift)
+							return 1;
+						if (maxSize == 1)
+							return 5;
+						int remaining = c.currentValue % maxSize;
+						if (remaining == 0)
+							return maxSize;
+						if (c.forward)
+							return maxSize - remaining;
+						return remaining;
+					})
+					.withShiftStep(maxSize == 1 ? 5 : maxSize);
+				calAdditionalStock.setState(CALCompatHelper.getAdditionalStock(behaviour));
+				calUpdateAdditionalStockLabel();
+				addRenderableWidget(calAdditionalStock);
+			}
+		}
+	}
+
+	//
+
+	private void calUpdatePromiseLimitLabel() {
+		if (calPromiseLimit == null)
+			return;
+		String key = "createadditionallogistics.gauge.promise_limit";
+		if (calPromiseLimit.getState() == -1)
+			key = key + ".none";
+		calPromiseLimit.titled(Component.translatable(key));
+	}
+
+	private void calUpdateAdditionalStockLabel() {
+		if (calAdditionalStock == null)
+			return;
+		String key = "createadditionallogistics.gauge.request_additional";
+		if (calAdditionalStock.getState() <= 0)
+			key = key + ".none";
+		calAdditionalStock.titled(Component.translatable(key));
+	}
+
+	private String calFormatAdditional() {
+		int additional = calAdditionalStock == null ? 0 : calAdditionalStock.getState();
+		if (additional <= 0)
+			return "---";
+		int stackSize = behaviour.getFilter().getMaxStackSize();
+		if (stackSize == 1)
+			return String.valueOf(additional);
+		int stacks = additional / stackSize;
+		int items = additional % stackSize;
+		if (stacks == 0)
+			return String.valueOf(items);
+		if (items != 0)
+			return String.valueOf(additional);
+		return stacks + "▤";
 	}
 
 	@Override
@@ -290,6 +364,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			.translate(promiseExpiration.getState() == -1 ? "gui.factory_panel.promises_do_not_expire"
 				: "gui.factory_panel.promises_expire_title")
 			.component());
+		calUpdatePromiseLimitLabel();
+		calUpdateAdditionalStockLabel();
 	}
 
 	//
@@ -353,6 +429,26 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		graphics.drawString(font,
 			Component.literal(state == -1 ? " /" : state == 0 ? "30s" : state + "m"),
 			promiseExpiration.getX() + 3, promiseExpiration.getY() + 4, 0xffeeeeee, true);
+
+		if (CALCompatHelper.isLoaded()) {
+			ResourceLocation calTex = ResourceLocation.fromNamespaceAndPath("createadditionallogistics",
+				"textures/gui/promise_limit.png");
+			if (calPromiseLimit != null) {
+				graphics.blit(calTex, calPromiseLimit.getX() - 8, calPromiseLimit.getY() - 4, 0, 0, 72, 28, 128, 32);
+				int limit = calPromiseLimit.getState();
+				if (limit >= 0 && !restocker && outputConfig != null)
+					limit *= outputConfig.count;
+				graphics.drawString(font,
+					CreateLang.text(limit == -1 ? " ---" : " " + limit).component(),
+					calPromiseLimit.getX() + 3, calPromiseLimit.getY() + 4, 0xffeeeeee, true);
+			}
+			if (calAdditionalStock != null) {
+				graphics.blit(calTex, calAdditionalStock.getX() + 2, calAdditionalStock.getY() - 1, 72, 0, 47, 18, 128, 32);
+				graphics.drawString(font,
+					CreateLang.text(" " + calFormatAdditional()).component(),
+					calAdditionalStock.getX() + 15, calAdditionalStock.getY() + 4, 0xffeeeeee, true);
+			}
+		}
 	}
 
 	//
@@ -734,6 +830,12 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			addressBox.getValue(), inputAmounts, craftingArrangement, outputConfig.count, promiseExpiration.getState(),
 			removePos, clearPromises, sendReset, sendRedstoneReset);
 		CatnipServices.NETWORK.sendToServer(packet);
+
+		if (CALCompatHelper.isLoaded() && calPromiseLimit != null) {
+			int limit = calPromiseLimit.getState();
+			int additional = calAdditionalStock != null ? calAdditionalStock.getState() : 0;
+			CALCompatHelper.sendUpdatePacket(behaviour.getPanelPosition(), limit, additional);
+		}
 	}
 
 	// Button callbacks
