@@ -125,8 +125,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private BigItemStack outputConfig;
 	/** 匹配到的合成配方，null 表示无匹配 */
 	private CraftingRecipe availableCraftingRecipe;
-	/** 合成是否激活 */
-	private boolean craftingActive;
 	/** 合成配料列表（激活合成时替换 inputGrid 显示） */
 	private List<BigItemStack> craftingIngredients;
 	/** 输入配置列表（连接→物品+数量），用于 sendIt() 索引查找 */
@@ -138,9 +136,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		minecraft = Minecraft.getInstance();
 		this.behaviour = menu.contentHolder;
 		this.restocker = behaviour.panelBE().restocker;
-		this.craftingActive = !behaviour.activeCraftingArrangement.isEmpty();
-		menu.craftingActive = this.craftingActive;
-		if (craftingActive) {
+		menu.craftingActive = !behaviour.activeCraftingArrangement.isEmpty();
+		if (menu.craftingActive) {
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
 		}
@@ -164,13 +161,12 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			.toList();
 		searchForCraftingRecipe(inputConfig);
 		if (availableCraftingRecipe == null) {
-			if (craftingActive) {
-				craftingActive = false;
+			if (menu.craftingActive) {
 				menu.craftingActive = false;
 				rebuildGhostInventory();
 			}
 		} else {
-			craftingIngredients = convertRecipeToPackageOrderContext(availableCraftingRecipe, inputConfig, false);
+			craftingIngredients = convertRecipeToPackageOrderContext(availableCraftingRecipe, inputConfig);
 		}
 	}
 
@@ -223,7 +219,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	 * 将合成配方转换为 3×3 格子展示格式。
 	 */
 	public static List<BigItemStack> convertRecipeToPackageOrderContext(
-			CraftingRecipe recipe, List<BigItemStack> inputConfig, boolean testOnly) {
+			CraftingRecipe recipe, List<BigItemStack> inputConfig ){
 		List<BigItemStack> result = new ArrayList<>();
 		BigItemStack empty = new BigItemStack(ItemStack.EMPTY, 1);
 		NonNullList<Ingredient> ingredients = recipe.getIngredients();
@@ -247,7 +243,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				for (BigItemStack wrapper : wrappers) {
 					if (wrapper.count > 0 && ingredient.test(wrapper.stack)) {
 						matched = new BigItemStack(wrapper.stack, 1);
-						if (testOnly) wrapper.count--;
 						break;
 					}
 				}
@@ -332,12 +327,12 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		super.containerTick();
 		if (connections.size() != behaviour.targetedBy.size()) {
 			updateConfigs();
-			if (!craftingActive)
+			if (!menu.craftingActive)
 				rebuildGhostInventory();
 			init();
 		}
 		if (activateCraftingButton != null) {
-			activateCraftingButton.green = craftingActive;
+			activateCraftingButton.green = menu.craftingActive;
 		}
 		if (addressBox != null) addressBox.tick();
 		if (promiseExpiration != null) {
@@ -430,7 +425,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private void renderInputGrid(GuiGraphics graphics, int mouseX, int mouseY) {
 		int slot = 0;
 
-		if (craftingActive) {
+		if (menu.craftingActive) {
 			for (BigItemStack itemStack : craftingIngredients)
 				renderInputItem(graphics, slot++, itemStack, mouseX, mouseY);
 		} else if (!restocker) {
@@ -459,13 +454,13 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int inputY = getGuiTop() + (restocker ? 12 : 28) + (slot / 3 * 20);
 
 		graphics.renderItem(itemStack.stack, inputX, inputY);
-		if (craftingActive && !itemStack.stack.isEmpty())
+		if (menu.craftingActive && !itemStack.stack.isEmpty())
 			graphics.renderItemDecorations(font, itemStack.stack, inputX, inputY, itemStack.count + "");
 
 		if (mouseX < inputX - 2 || mouseX >= inputX - 2 + 20 || mouseY < inputY - 2 || mouseY >= inputY - 2 + 20)
 			return;
 
-		if (craftingActive) {
+		if (menu.craftingActive) {
 			graphics.renderComponentTooltip(font, List.of(
 				CreateLang.translateDirect("gui.factory_panel.crafting_input"),
 				CreateLang.translateDirect("gui.factory_panel.crafting_input_tip")
@@ -505,7 +500,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	protected void renderForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
 		super.renderForeground(graphics, mouseX, mouseY, partialTicks);
 
-		if (craftingActive || restocker)
+		if (menu.craftingActive || restocker)
 			return;
 
 		int x = getGuiLeft();
@@ -527,7 +522,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 	@Override
 	protected List<Component> getTooltipFromContainerItem(ItemStack stack) {
-		if (!(hoveredSlot instanceof SlotItemHandler) || craftingActive || restocker)
+		if (!(hoveredSlot instanceof SlotItemHandler) || menu.craftingActive || restocker)
 			return super.getTooltipFromContainerItem(stack);
 
 		int slotIndex = hoveredSlot.getSlotIndex();
@@ -570,7 +565,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				.withStyle(ChatFormatting.DARK_GRAY)
 				.withStyle(ChatFormatting.ITALIC);
 			graphics.renderComponentTooltip(font,
-				craftingActive ? List.of(c1, c2, c3) : List.of(c1, c2, c3, c4),
+				menu.craftingActive ? List.of(c1, c2, c3) : List.of(c1, c2, c3, c4),
 				mouseX, mouseY);
 		}
 	}
@@ -586,10 +581,10 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int y = getGuiTop();
 
 		// Validate ghost slot placement: only linked items allowed
-		if (!craftingActive && !restocker && !getMenu().getCarried().isEmpty()) {
+		if (!menu.craftingActive && !restocker && !getMenu().getCarried().isEmpty()) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45) {
-				if (!isLinkedItem(getMenu().getCarried())) {
+				if (!menu.isLinkedItem(getMenu().getCarried())) {
 					if (minecraft.player != null) {
 						minecraft.player.displayClientMessage(
 							CreateLang.translateDirect("gui.factory_panel.unlinked_item")
@@ -603,14 +598,14 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		}
 
 		// Block ghost slot interactions in crafting or restocker mode
-		if (craftingActive || restocker) {
+		if (menu.craftingActive || restocker) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45)
 				return true;
 		}
 
 		// Left-click on LAST instance of item in ghost slot: disconnect the gauge
-		if (!craftingActive && !restocker && pButton == 0 && getMenu().getCarried().isEmpty()) {
+		if (!menu.craftingActive && !restocker && pButton == 0 && getMenu().getCarried().isEmpty()) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45) {
 				int ghostIdx = slot.index - 36;
@@ -636,7 +631,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		}
 
 		// Right-click on ghost slot to disconnect the matching connection
-		if (!craftingActive && !restocker && pButton == 1) {
+		if (!menu.craftingActive && !restocker && pButton == 1) {
 			Slot slot = findSlot(mouseX, mouseY);
 			if (slot != null && slot.index >= 36 && slot.index < 45) {
 				int ghostIdx = slot.index - 36;
@@ -685,7 +680,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		if (addressBox.mouseScrolled(mouseX, mouseY, scrollX, scrollY))
 			return true;
 
-		if (craftingActive)
+		if (menu.craftingActive)
 			return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
 
 		if (!restocker) {
@@ -753,7 +748,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private void sendIt(FactoryPanelPosition removePos, boolean clearPromises) {
 		Map<FactoryPanelPosition, Integer> inputAmounts = new HashMap<>();
 
-		if (!craftingActive && !restocker) {
+		if (!menu.craftingActive && !restocker) {
 			// Aggregate ghost slot amounts per connection (free-form grid)
 			for (int c = 0; c < connections.size(); c++) {
 				BigItemStack cfg = inputConfig.get(c);
@@ -767,7 +762,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				}
 				inputAmounts.put(connections.get(c).from, total);
 			}
-		} else if (craftingActive) {
+		} else if (menu.craftingActive) {
 			for (int i = 0; i < connections.size(); i++) {
 				BigItemStack stackInConfig = inputConfig.get(i);
 				inputAmounts.put(connections.get(i).from, (int) craftingIngredients.stream()
@@ -781,7 +776,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				inputAmounts.put(connections.get(0).from, restockStack.getCount());
 		}
 
-		List<ItemStack> craftingArrangement = craftingActive
+		List<ItemStack> craftingArrangement = menu.craftingActive
 			? craftingIngredients.stream().map(bis -> bis.stack).toList()
 			: List.of();
 
@@ -832,9 +827,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	}
 
 	private void onActivateCrafting() {
-		craftingActive = !craftingActive;
-		menu.craftingActive = craftingActive;
-		if (craftingActive) {
+		menu.craftingActive = !menu.craftingActive;
+		if (menu.craftingActive) {
 			// Save current ghost inventory to ghost grid before clearing
 			List<ItemStack> grid = new ArrayList<>();
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
@@ -857,22 +851,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 	// ==================== 辅助方法 ====================
 
-	/**
-	 * 检查物品是否来自任一已连接工厂仪表的过滤器。即「已链接物品」判定。
-	 */
-	private boolean isLinkedItem(ItemStack carried) {
-		if (carried.isEmpty())
-			return false;
-		for (FactoryPanelConnection conn : connections) {
-			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
-			if (source != null) {
-				ItemStack filter = source.getFilter();
-				if (!filter.isEmpty() && ItemStack.isSameItemSameComponents(filter, carried))
-					return true;
-			}
-		}
-		return false;
-	}
 
 	/**
 	 * 根据幽灵槽中的物品，找到首个匹配的连接来源位置（用于断开连接）。
@@ -890,7 +868,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	 * 从连接列表重建幽灵物品栏（用量 1 每格）。
 	 */
 	private void rebuildGhostInventory() {
-		if (restocker || craftingActive)
+		if (restocker || menu.craftingActive)
 			return;
 
 		for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
@@ -912,12 +890,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		for (int i = 0; i < Math.min(9, saved.size()); i++)
 			menu.ghostInventory.setStackInSlot(i, saved.get(i).copy());
 
-		// Clear items whose connections no longer exist
-		for (int i = 0; i < 9; i++) {
-			ItemStack s = menu.ghostInventory.getStackInSlot(i);
-			if (!s.isEmpty() && !isLinkedItem(s))
-				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
-		}
+			menu.clearUnlinkedItems(menu.ghostInventory);
 	}
 
 	/**

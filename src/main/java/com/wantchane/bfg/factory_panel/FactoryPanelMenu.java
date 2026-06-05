@@ -65,12 +65,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 			for (int i = 0; i < Math.min(9, saved.size()); i++)
 				inventory.setStackInSlot(i, saved.get(i).copy());
 
-			// Clear items whose connections no longer exist
-			for (int i = 0; i < 9; i++) {
-				ItemStack s = inventory.getStackInSlot(i);
-				if (!s.isEmpty() && !isLinkedItem(s))
-					inventory.setStackInSlot(i, ItemStack.EMPTY);
-			}
+			clearUnlinkedItems(inventory);
 
 			// Merge new connections not in ghost grid into empty slots
 			for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
@@ -167,7 +162,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 		return super.quickMoveStack(player, index);
 	}
 
-	private boolean isLinkedItem(ItemStack stack) {
+	public boolean isLinkedItem(ItemStack stack) {
 		if (stack.isEmpty())
 			return false;
 		for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
@@ -176,6 +171,14 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 				return true;
 		}
 		return false;
+	}
+
+	public void clearUnlinkedItems(ItemStackHandler inventory) {
+		for (int i = 0; i < inventory.getSlots(); i++) {
+			ItemStack s = inventory.getStackInSlot(i);
+			if (!s.isEmpty() && !isLinkedItem(s))
+				inventory.setStackInSlot(i, ItemStack.EMPTY);
+		}
 	}
 
 	@Override

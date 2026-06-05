@@ -12,7 +12,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public record SyncGhostGridPayload(FactoryPanelPosition position, List<ItemStack> ghostGrid) implements CustomPacketPayload {
@@ -37,10 +36,7 @@ public record SyncGhostGridPayload(FactoryPanelPosition position, List<ItemStack
 	public void handle(ServerPlayer player) {
 		FactoryPanelBehaviour behaviour = FactoryPanelBehaviour.at(player.level(), position);
 		if (behaviour != null) {
-			List<ItemStack> grid = new ArrayList<>(ghostGrid);
-			while (grid.size() < 9)
-				grid.add(ItemStack.EMPTY);
-			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
+			((GhostGridAccessor) behaviour).bfg$setGhostGrid(ghostGrid);
 			behaviour.blockEntity.sendData();
 			behaviour.blockEntity.setChanged();
 		}

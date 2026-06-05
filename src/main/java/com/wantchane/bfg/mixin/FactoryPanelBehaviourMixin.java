@@ -128,11 +128,8 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         }
     }
 
-    /**
-     * Persist ghost grid items (with counts) into NBT for network sync and disk save.
-     */
-    @Inject(method = "write", at = @At("TAIL"))
-    private void bfg$writeGhostGrid(CompoundTag nbt, HolderLookup.Provider registries, boolean clientPacket, CallbackInfo ci) {
+    @Unique
+    private void bfg$writeGhostGridToNbt(CompoundTag nbt, HolderLookup.Provider registries) {
         String key = CreateLang.asId(bfg$self().slot.name());
         CompoundTag panelTag = nbt.getCompound(key);
         if (!panelTag.isEmpty()) {
@@ -141,17 +138,14 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         }
     }
 
-    /**
-     * Persist ghost grid to disk (writeSafe path for world save).
-     */
+    @Inject(method = "write", at = @At("TAIL"))
+    private void bfg$writeGhostGrid(CompoundTag nbt, HolderLookup.Provider registries, boolean clientPacket, CallbackInfo ci) {
+        bfg$writeGhostGridToNbt(nbt, registries);
+    }
+
     @Inject(method = "writeSafe", at = @At("TAIL"))
     private void bfg$writeSafeGhostGrid(CompoundTag nbt, HolderLookup.Provider registries, CallbackInfo ci) {
-        String key = CreateLang.asId(bfg$self().slot.name());
-        CompoundTag panelTag = nbt.getCompound(key);
-        if (!panelTag.isEmpty()) {
-            panelTag.put("BFGGhostGrid", NBTHelper.writeItemList(new ArrayList<>(bfg$ghostGrid), registries));
-            nbt.put(key, panelTag);
-        }
+        bfg$writeGhostGridToNbt(nbt, registries);
     }
 
     /**
