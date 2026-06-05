@@ -127,8 +127,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private CraftingRecipe availableCraftingRecipe;
 	/** 合成配料列表（激活合成时替换 inputGrid 显示） */
 	private List<BigItemStack> craftingIngredients;
-	/** 输入配置列表（连接→物品+数量），用于 sendIt() 索引查找 */
-	private List<BigItemStack> inputConfig;
 
 
 	public FactoryPanelScreen(FactoryPanelMenu menu, Inventory inv, Component title) {
@@ -152,8 +150,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		connections = new ArrayList<>(behaviour.targetedBy.values());
 		outputConfig = new BigItemStack(behaviour.getFilter(), behaviour.recipeOutput);
 
-		// Build inputConfig for crafting recipe search
-		inputConfig = connections.stream()
+		var inputConfig = connections.stream()
 			.map(c -> {
 				FactoryPanelBehaviour b = FactoryPanelBehaviour.at(minecraft.level, c.from);
 				return b == null ? new BigItemStack(ItemStack.EMPTY, 0) : new BigItemStack(b.getFilter(), c.amount);
@@ -750,25 +747,34 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		if (!menu.craftingActive && !restocker) {
 			// Aggregate ghost slot amounts per connection (free-form grid)
-			for (int c = 0; c < connections.size(); c++) {
-				BigItemStack cfg = inputConfig.get(c);
+			for (FactoryPanelConnection conn : connections) {
+				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
+				if (source == null)
+					continue;
+				ItemStack filter = source.getFilter();
+				if (filter.isEmpty())
+					continue;
 				int total = 0;
-				if (!cfg.stack.isEmpty()) {
-					for (int s = 0; s < 9; s++) {
-						ItemStack ghostItem = menu.ghostInventory.getStackInSlot(s);
-						if (!ghostItem.isEmpty() && ItemStack.isSameItemSameComponents(ghostItem, cfg.stack))
-							total += ghostItem.getCount();
-					}
+				for (int s = 0; s < 9; s++) {
+					ItemStack ghostItem = menu.ghostInventory.getStackInSlot(s);
+					if (!ghostItem.isEmpty() && ItemStack.isSameItemSameComponents(ghostItem, filter))
+						total += ghostItem.getCount();
 				}
-				inputAmounts.put(connections.get(c).from, total);
+				inputAmounts.put(conn.from, total);
 			}
 		} else if (menu.craftingActive) {
-			for (int i = 0; i < connections.size(); i++) {
-				BigItemStack stackInConfig = inputConfig.get(i);
-				inputAmounts.put(connections.get(i).from, (int) craftingIngredients.stream()
+			for (FactoryPanelConnection conn : connections) {
+				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
+				if (source == null)
+					continue;
+				ItemStack filter = source.getFilter();
+				if (filter.isEmpty())
+					continue;
+				int count = (int) craftingIngredients.stream()
 					.filter(ci -> !ci.stack.isEmpty()
-						&& ItemStack.isSameItemSameComponents(ci.stack, stackInConfig.stack))
-					.count());
+						&& ItemStack.isSameItemSameComponents(ci.stack, filter))
+					.count();
+				inputAmounts.put(conn.from, count);
 			}
 		} else {
 			ItemStack restockStack = menu.ghostInventory.getStackInSlot(0);
