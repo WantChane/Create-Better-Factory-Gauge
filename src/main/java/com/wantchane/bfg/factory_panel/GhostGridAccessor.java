@@ -6,4 +6,6 @@ import java.util.List;
 public interface GhostGridAccessor {
     List<ItemStack> bfg$getGhostGrid();
     void bfg$setGhostGrid(List<ItemStack> grid);
+    int bfg$getRecipeCraftCount();
+    void bfg$setRecipeCraftCount(int count);
 }

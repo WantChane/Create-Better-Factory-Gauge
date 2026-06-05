@@ -32,6 +32,7 @@ import com.simibubi.create.foundation.gui.widget.IconButton;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.simibubi.create.foundation.utility.CreateLang;
 import com.wantchane.bfg.compat.CALCompatHelper;
+import com.wantchane.bfg.network.SyncCraftCountPayload;
 
 import net.createmod.catnip.gui.element.GuiGameElement;
 import net.createmod.catnip.platform.CatnipServices;
@@ -55,6 +56,7 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.neoforged.neoforge.items.SlotItemHandler;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanelMenu> {
 
@@ -80,6 +82,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private BigItemStack outputConfig;
 	private CraftingRecipe availableCraftingRecipe;
 	private List<BigItemStack> craftingIngredients;
+	private int recipeCraftCount = 1;
 
 	public FactoryPanelScreen(FactoryPanelMenu menu, Inventory inv, Component title) {
 		super(menu, inv, title);
@@ -91,6 +94,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
 		}
+		recipeCraftCount = ((GhostGridAccessor) behaviour).bfg$getRecipeCraftCount();
 		updateConfigs();
 	}
 
@@ -489,7 +493,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		graphics.renderItem(itemStack.stack, inputX, inputY);
 		if (menu.craftingActive && !itemStack.stack.isEmpty())
-			graphics.renderItemDecorations(font, itemStack.stack, inputX, inputY, itemStack.count + "");
+			graphics.renderItemDecorations(font, itemStack.stack, inputX, inputY, (itemStack.count * recipeCraftCount) + "");
 
 		if (mouseX < inputX - 2 || mouseX >= inputX - 2 + 20 || mouseY < inputY - 2 || mouseY >= inputY - 2 + 20)
 			return;
@@ -504,8 +508,12 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 						.component(),
 					CreateLang.translate("gui.factory_panel.crafting_input_tip_1")
 						.style(ChatFormatting.GRAY)
+						.component(),
+					CreateLang.translate("gui.factory_panel.craft_count_scroll_tip")
+						.style(ChatFormatting.DARK_GRAY)
+						.style(ChatFormatting.ITALIC)
 						.component()),
-				mouseX, mouseY);
+			mouseX, mouseY);
 			return;
 		}
 
@@ -590,13 +598,13 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int outputX = getGuiLeft() + 160;
 		int outputY = getGuiTop() + 48;
 		graphics.renderItem(outputConfig.stack, outputX, outputY);
-		graphics.renderItemDecorations(font, behaviour.getFilter(), outputX, outputY, outputConfig.count + "");
+		graphics.renderItemDecorations(font, behaviour.getFilter(), outputX, outputY, (menu.craftingActive ? outputConfig.count * recipeCraftCount : outputConfig.count) + "");
 
 		if (mouseX >= outputX - 1 && mouseX < outputX - 1 + 18 && mouseY >= outputY - 1
 			&& mouseY < outputY - 1 + 18) {
 			MutableComponent c1 = CreateLang
 				.translate("gui.factory_panel.expected_output", CreateLang.itemName(outputConfig.stack)
-					.add(CreateLang.text(" x" + outputConfig.count))
+					.add(CreateLang.text(" x" + outputConfig.count * recipeCraftCount))
 					.string())
 				.color(ScrollInput.HEADER_RGB)
 				.component();
@@ -610,7 +618,11 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				.style(ChatFormatting.DARK_GRAY)
 				.style(ChatFormatting.ITALIC)
 				.component();
-			graphics.renderComponentTooltip(font, menu.craftingActive ? List.of(c1, c2, c3) : List.of(c1, c2, c3, c4),
+			MutableComponent c5 = CreateLang.translate("gui.factory_panel.craft_count_scroll_tip")
+				.style(ChatFormatting.DARK_GRAY)
+				.style(ChatFormatting.ITALIC)
+				.component();
+			graphics.renderComponentTooltip(font, menu.craftingActive ? List.of(c1, c2, c3, c5) : List.of(c1, c2, c3, c4),
 				mouseX, mouseY);
 		}
 	}
@@ -726,8 +738,28 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		if (addressBox.mouseScrolled(mouseX, mouseY, scrollX, scrollY))
 			return true;
 
-		if (menu.craftingActive)
+		if (menu.craftingActive) {
+			boolean overGrid = false;
+			for (int i = 0; i < 9; i++) {
+				int gx = x + 68 + (i % 3 * 20);
+				int gy = y + 28 + (i / 3 * 20);
+				if (mouseX >= gx && mouseX < gx + 16 && mouseY >= gy && mouseY < gy + 16) {
+					overGrid = true;
+					break;
+				}
+			}
+			int outputX = x + 160;
+			int outputY = y + 48;
+			boolean overOutput = mouseX >= outputX && mouseX < outputX + 16 && mouseY >= outputY && mouseY < outputY + 16;
+
+			if (overGrid || overOutput) {
+				int delta = (int) Math.signum(scrollY) * (hasShiftDown() ? 10 : 1);
+				recipeCraftCount = Mth.clamp(recipeCraftCount + delta, 1, 64);
+				PacketDistributor.sendToServer(new SyncCraftCountPayload(behaviour.getPanelPosition(), recipeCraftCount));
+				return true;
+			}
 			return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+		}
 
 		if (!restocker) {
 			for (int i = 0; i < 9; i++) {

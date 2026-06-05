@@ -2,6 +2,8 @@ package com.wantchane.bfg.mixin;
 
 import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
+import com.simibubi.create.content.logistics.stockTicker.PackageOrder;
+import com.simibubi.create.content.logistics.stockTicker.PackageOrderWithCrafts;
 
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBoard;
@@ -15,6 +17,7 @@ import net.createmod.catnip.nbt.NBTHelper;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
@@ -38,6 +41,9 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     private List<ItemStack> bfg$ghostGrid = new ArrayList<>();
 
     @Unique
+    private int bfg$recipeCraftCount = 1;
+
+    @Unique
     private FactoryPanelBehaviour bfg$self() {
         return (FactoryPanelBehaviour) (Object) this;
     }
@@ -50,6 +56,16 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     @Unique
     public void bfg$setGhostGrid(List<ItemStack> grid) {
         bfg$ghostGrid = new ArrayList<>(grid);
+    }
+
+    @Unique
+    public int bfg$getRecipeCraftCount() {
+        return bfg$recipeCraftCount;
+    }
+
+    @Unique
+    public void bfg$setRecipeCraftCount(int count) {
+        bfg$recipeCraftCount = Mth.clamp(count, 1, 64);
     }
 
     @Inject(method = "<init>", at = @At("TAIL"))
@@ -75,16 +91,34 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
             return orderedItems;
 
         List<ItemStack> ghostGrid = bfg$getGhostGrid();
+        boolean crafting = !bfg$self().activeCraftingArrangement.isEmpty();
+        int multiplier = crafting ? bfg$recipeCraftCount : 1;
         List<BigItemStack> result = new ArrayList<>();
         for (ItemStack item : ghostGrid) {
             if (!item.isEmpty())
-                result.add(new BigItemStack(item, item.getCount()));
+                result.add(new BigItemStack(item, item.getCount() * multiplier));
         }
 
         if (!result.isEmpty())
             return result;
 
         return orderedItems;
+    }
+
+    /**
+     * Replace hardcoded count=1 in singleRecipe with the user-configurable
+     * craft multiplier. The rest of tickRequests carries craftingContext
+     * forward into each network's PackageOrderWithCrafts via
+     * {@code craftingContext.orderedCrafts()}, so only this call site
+     * needs to change.
+     */
+    @Redirect(
+        method = "tickRequests",
+        at = @At(value = "INVOKE", target = "Lcom/simibubi/create/content/logistics/stockTicker/PackageOrderWithCrafts;singleRecipe(Ljava/util/List;)Lcom/simibubi/create/content/logistics/stockTicker/PackageOrderWithCrafts;")
+    )
+    private PackageOrderWithCrafts bfg$singleRecipeWithCount(List<BigItemStack> pattern) {
+        return new PackageOrderWithCrafts(PackageOrder.empty(),
+            List.of(new PackageOrderWithCrafts.CraftingEntry(new PackageOrder(pattern), bfg$recipeCraftCount)));
     }
 
     /**
@@ -107,6 +141,7 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         CompoundTag panelTag = nbt.getCompound(key);
         if (!panelTag.isEmpty()) {
             panelTag.put("BFGGhostGrid", NBTHelper.writeItemList(new ArrayList<>(bfg$ghostGrid), registries));
+            panelTag.putInt("BFGCraftCount", bfg$recipeCraftCount);
             nbt.put(key, panelTag);
         }
     }
@@ -133,6 +168,8 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
             while (bfg$ghostGrid.size() < 9)
                 bfg$ghostGrid.add(ItemStack.EMPTY);
         }
+        if (panelTag.contains("BFGCraftCount"))
+            bfg$recipeCraftCount = Mth.clamp(panelTag.getInt("BFGCraftCount"), 1, 64);
     }
 
     // === ValueSettingsBoard range expansion (100 → 1000 actual, 200 board) ===

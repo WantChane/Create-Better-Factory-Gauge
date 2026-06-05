@@ -3,6 +3,7 @@ package com.wantchane.bfg;
 import com.mojang.logging.LogUtils;
 import com.wantchane.bfg.factory_panel.FactoryPanelScreen;
 import com.wantchane.bfg.network.OpenFactoryPanelPayload;
+import com.wantchane.bfg.network.SyncCraftCountPayload;
 import com.wantchane.bfg.network.SyncGhostGridPayload;
 
 import net.neoforged.bus.api.IEventBus;
@@ -41,6 +42,14 @@ public class CreateBetterFactoryGauge {
             registrar.playToServer(
                 SyncGhostGridPayload.TYPE,
                 SyncGhostGridPayload.STREAM_CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer sp)
+                        payload.handle(sp);
+                })
+            );
+            registrar.playToServer(
+                SyncCraftCountPayload.TYPE,
+                SyncCraftCountPayload.STREAM_CODEC,
                 (payload, context) -> context.enqueueWork(() -> {
                     if (context.player() instanceof ServerPlayer sp)
                         payload.handle(sp);

@@ -1,3 +1,7 @@
 {
-  "create.gui.factory_panel.unlinked_item": "只能使用添加过链接的物品"
+  "create.gui.factory_panel.unlinked_item": "只能使用添加过链接的物品",
+  "create.gui.factory_panel.craft_count": "合成倍率: %1$s",
+  "create.gui.factory_panel.craft_count_tip": "在合成格或输出格上滚动来调整合成倍率",
+  "create.gui.factory_panel.craft_count_tip_1": "按住Shift滚动调整±10",
+  "create.gui.factory_panel.craft_count_scroll_tip": "滚动来调整合成倍率"
 }
