@@ -1,7 +1,4 @@
 {
   "create.gui.factory_panel.unlinked_item": "Can only use items from linked gauges",
-  "create.gui.factory_panel.craft_count": "Craft Count: %1$s",
-  "create.gui.factory_panel.craft_count_tip": "Scroll on grid or output to change craft multiplier",
-  "create.gui.factory_panel.craft_count_tip_1": "Shift-Scroll for ±10",
   "create.gui.factory_panel.craft_count_scroll_tip": "Scroll to change craft multiplier"
 }

@@ -906,6 +906,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			rebuildGhostInventory();
 		}
 		init();
+		if (calPromiseLimit != null)
+			calPromiseLimit.setState(-1);
 	}
 
 	//

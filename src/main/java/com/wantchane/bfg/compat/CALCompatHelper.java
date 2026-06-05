@@ -19,13 +19,8 @@ public class CALCompatHelper {
 	private static boolean loaded;
 
 	// IPromiseLimit
-	private static Class<?> iplClass;
 	private static Method getPromiseLimit;
-	private static Method setPromiseLimit;
-	private static Method hasPromiseLimit;
 	private static Method getAdditionalStock;
-	private static Method setAdditionalStock;
-	private static Method hasAdditionalStock;
 
 	// Config
 	private static Object configCommon;
@@ -46,13 +41,9 @@ public class CALCompatHelper {
 			return;
 
 		try {
-			iplClass = Class.forName(IPL_CLASS);
+			Class<?> iplClass = Class.forName(IPL_CLASS);
 			getPromiseLimit = iplClass.getMethod("getCALPromiseLimit");
-			setPromiseLimit = iplClass.getMethod("setCALPromiseLimit", int.class);
-			hasPromiseLimit = iplClass.getMethod("hasCALPromiseLimit");
 			getAdditionalStock = iplClass.getMethod("getCALAdditionalStock");
-			setAdditionalStock = iplClass.getMethod("setCALAdditionalStock", int.class);
-			hasAdditionalStock = iplClass.getMethod("hasCALAdditionalStock");
 
 			Class<?> configClass = Class.forName(CONFIG_CLASS);
 			Field commonField = configClass.getField("Common");
@@ -75,22 +66,6 @@ public class CALCompatHelper {
 		return loaded;
 	}
 
-	public static boolean isPromiseLimit(FactoryPanelBehaviour behaviour) {
-		if (!isLoaded())
-			return false;
-		return iplClass.isInstance(behaviour);
-	}
-
-	public static boolean hasPromiseLimit(FactoryPanelBehaviour behaviour) {
-		if (!isLoaded())
-			return false;
-		try {
-			return (boolean) hasPromiseLimit.invoke(behaviour);
-		} catch (Exception e) {
-			return false;
-		}
-	}
-
 	public static int getPromiseLimit(FactoryPanelBehaviour behaviour) {
 		try {
 			return (int) getPromiseLimit.invoke(behaviour);
@@ -99,25 +74,11 @@ public class CALCompatHelper {
 		}
 	}
 
-	public static void setPromiseLimit(FactoryPanelBehaviour behaviour, int value) {
-		try {
-			setPromiseLimit.invoke(behaviour, value);
-		} catch (Exception ignored) {
-		}
-	}
-
 	public static int getAdditionalStock(FactoryPanelBehaviour behaviour) {
 		try {
 			return (int) getAdditionalStock.invoke(behaviour);
 		} catch (Exception e) {
 			return 0;
-		}
-	}
-
-	public static void setAdditionalStock(FactoryPanelBehaviour behaviour, int value) {
-		try {
-			setAdditionalStock.invoke(behaviour, value);
-		} catch (Exception ignored) {
 		}
 	}
 
