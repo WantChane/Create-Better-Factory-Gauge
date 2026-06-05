@@ -3,6 +3,9 @@ package com.wantchane.bfg.mixin;
 import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
 
+import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour;
+import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBoard;
+import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsFormatter;
 import com.simibubi.create.foundation.utility.CreateLang;
 
 import com.wantchane.bfg.factory_panel.GhostGridAccessor;
@@ -14,6 +17,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,7 +25,9 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.*;
 
@@ -127,5 +133,59 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
             while (bfg$ghostGrid.size() < 9)
                 bfg$ghostGrid.add(ItemStack.EMPTY);
         }
+    }
+
+    // === ValueSettingsBoard range expansion (100 → 1000 actual, 200 board) ===
+
+    @Unique
+    private static int bfg$boardToActual(int board) {
+        if (board <= 100) return board;
+        if (board <= 150) return 100 + (board - 100) * 6;
+        return 400 + (board - 150) * 12;
+    }
+
+    @Unique
+    private static int bfg$actualToBoard(int actual) {
+        if (actual <= 100) return actual;
+        if (actual <= 400) return 100 + (actual - 100) / 6;
+        return 150 + (actual - 400) / 12;
+    }
+
+    /**
+     * Replace the board: maxValue 100→200 (actual 1000), milestoneInterval 10→100,
+     * wrap the formatter so displayed values show actual counts.
+     */
+    @Inject(method = "createBoard", at = @At("RETURN"), cancellable = true)
+    private void bfg$modifyCreateBoard(Player player, BlockHitResult hitResult, CallbackInfoReturnable<ValueSettingsBoard> cir) {
+        ValueSettingsBoard original = cir.getReturnValue();
+        cir.setReturnValue(new ValueSettingsBoard(
+            original.title(),
+            200,
+            100,
+            original.rows(),
+            new ValueSettingsFormatter(v -> bfg$self().formatValue(
+                new ValueSettingsBehaviour.ValueSettings(v.row(), bfg$boardToActual(v.value()))))
+        ));
+    }
+
+    /**
+     * Convert board-space value from UI into actual count before storing.
+     * Redirects {@code settings.value()} call in {@code setValueSettings}.
+     */
+    @Redirect(
+        method = "setValueSettings",
+        at = @At(value = "INVOKE", target = "Lcom/simibubi/create/foundation/blockEntity/behaviour/ValueSettingsBehaviour$ValueSettings;value()I")
+    )
+    private int bfg$redirectSettingsValue(ValueSettingsBehaviour.ValueSettings settings) {
+        return bfg$boardToActual(settings.value());
+    }
+
+    /**
+     * Convert actual count back to board-space so UI cursor matches stored value.
+     */
+    @Inject(method = "getValueSettings", at = @At("RETURN"), cancellable = true)
+    private void bfg$getValueConvertActualToBoard(CallbackInfoReturnable<ValueSettingsBehaviour.ValueSettings> cir) {
+        ValueSettingsBehaviour.ValueSettings original = cir.getReturnValue();
+        cir.setReturnValue(new ValueSettingsBehaviour.ValueSettings(original.row(), bfg$actualToBoard(original.value())));
     }
 }
