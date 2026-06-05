@@ -90,13 +90,25 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         if (self.targetedBy.isEmpty())
             return orderedItems;
 
+        // Crafting mode: use activeCraftingArrangement (per-recipe-slot, preserves duplicates).
+        // Ghost grid is per-connection and collapses duplicate ingredients, causing
+        // recipes with repeated items (e.g. 2 iron nuggets + 2 andesite) to request too few.
+        if (!self.activeCraftingArrangement.isEmpty()) {
+            List<BigItemStack> result = new ArrayList<>();
+            for (ItemStack item : self.activeCraftingArrangement) {
+                if (!item.isEmpty())
+                    result.add(new BigItemStack(item, item.getCount() * bfg$recipeCraftCount));
+            }
+            if (!result.isEmpty())
+                return result;
+            return orderedItems;
+        }
+
         List<ItemStack> ghostGrid = bfg$getGhostGrid();
-        boolean crafting = !bfg$self().activeCraftingArrangement.isEmpty();
-        int multiplier = crafting ? bfg$recipeCraftCount : 1;
         List<BigItemStack> result = new ArrayList<>();
         for (ItemStack item : ghostGrid) {
             if (!item.isEmpty())
-                result.add(new BigItemStack(item, item.getCount() * multiplier));
+                result.add(new BigItemStack(item, item.getCount()));
         }
 
         if (!result.isEmpty())
