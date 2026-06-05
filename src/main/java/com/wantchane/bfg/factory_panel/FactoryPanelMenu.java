@@ -224,9 +224,8 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 				grid.add(ItemStack.EMPTY);
 		}
 
-		if (behaviour.getWorld().isClientSide()) {
-			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
+		((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
+		if (behaviour.getWorld().isClientSide())
 			PacketDistributor.sendToServer(new SyncGhostGridPayload(behaviour.getPanelPosition(), grid));
-		}
 	}
 }
