@@ -288,7 +288,15 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				if (restocker)
 					calPromiseLimit = calPromiseLimit.withShiftStep(behaviour.getFilter().getMaxStackSize());
 				else
-					calPromiseLimit = calPromiseLimit.withShiftStep(10);
+					calPromiseLimit = calPromiseLimit.withShiftStep(10)
+						.withStepFunction(c -> {
+							if (menu.craftingActive) {
+								if (c.currentValue < 0)
+									return 1;
+								return c.shift ? 10 : recipeCraftCount;
+							}
+							return c.shift ? 10 : 1;
+						});
 				calPromiseLimit.setState(CALCompatHelper.getPromiseLimit(behaviour));
 				calUpdatePromiseLimitLabel();
 				addRenderableWidget(calPromiseLimit);
@@ -604,7 +612,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			&& mouseY < outputY - 1 + 18) {
 			MutableComponent c1 = CreateLang
 				.translate("gui.factory_panel.expected_output", CreateLang.itemName(outputConfig.stack)
-					.add(CreateLang.text(" x" + outputConfig.count * recipeCraftCount))
+					.add(CreateLang.text(" x" + (menu.craftingActive ? outputConfig.count * recipeCraftCount : outputConfig.count)))
 					.string())
 				.color(ScrollInput.HEADER_RGB)
 				.component();
