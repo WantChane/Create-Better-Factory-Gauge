@@ -209,7 +209,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int sizeX = FACTORY_GAUGE_BOTTOM.getWidth();
 		AllGuiTextures contentTex = restocker ? FACTORY_GAUGE_RESTOCK : FACTORY_GAUGE_RECIPE;
 		int baseHeight = contentTex.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
-		int windowHeight = baseHeight + 4 + PLAYER_INVENTORY.getHeight();
+		int calGap = CALCompatHelper.isLoaded() ? 22 : 0;
+		int windowHeight = baseHeight + 4 + PLAYER_INVENTORY.getHeight() + calGap;
 		setWindowSize(sizeX, windowHeight);
 		super.init();
 		clearWidgets();
@@ -278,7 +279,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		}
 		if (CALCompatHelper.isLoaded()) {
 			if (CALCompatHelper.isPromiseLimitsEnabled()) {
-				calPromiseLimit = new ScrollInput(x + 68, y + windowHeight + 1, 56, 16)
+				calPromiseLimit = new ScrollInput(x + 68, y + baseHeight + 3, 56, 16)
 					.withRange(-1, restocker ? 64 * 100 * 20 : 1000);
 				if (restocker)
 					calPromiseLimit = calPromiseLimit.withShiftStep(behaviour.getFilter().getMaxStackSize());
@@ -290,7 +291,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			}
 			if (restocker && CALCompatHelper.isAdditionalStockEnabled()) {
 				int maxSize = behaviour.getFilter().getMaxStackSize();
-				calAdditionalStock = new ScrollInput(x + 4, y + windowHeight - 24, 47, 16)
+				calAdditionalStock = new ScrollInput(x + 4, y + baseHeight - 24, 47, 16)
 					.withRange(0, 1 + maxSize * 100)
 					.withStepFunction(c -> {
 						if (!c.shift)
@@ -384,7 +385,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int baseHeight = contentTex.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
 		FACTORY_GAUGE_BOTTOM.render(graphics, x, y + contentTex.getHeight());
 
-		renderPlayerInventory(graphics, x + 8, y + baseHeight + 4);
+		renderPlayerInventory(graphics, x + 8, y + baseHeight + 4 + (CALCompatHelper.isLoaded() ? 22 : 0));
 
 		Component title = CreateLang
 			.translate(restocker ? "gui.factory_panel.title_as_restocker" : "gui.factory_panel.title_as_recipe")

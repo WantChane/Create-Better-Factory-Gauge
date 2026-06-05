@@ -5,6 +5,7 @@ import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition;
 import com.simibubi.create.foundation.gui.menu.GhostItemMenu;
 import com.wantchane.bfg.BFGMenuTypes;
+import com.wantchane.bfg.compat.CALCompatHelper;
 import com.wantchane.bfg.network.SyncGhostGridPayload;
 
 import net.minecraft.client.Minecraft;
@@ -122,7 +123,8 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	protected void addSlots() {
 		boolean restocker = contentHolder.panelBE().restocker;
 		int baseHeight = restocker ? 104 : 160;
-		addPlayerSlots(16, baseHeight + 18 + 4);
+		int calGap = CALCompatHelper.isLoaded() ? 22 : 0;
+		addPlayerSlots(16, baseHeight + 18 + 4 + calGap);
 
 		if (restocker) {
 			addSlot(new SlotItemHandler(ghostInventory, 0, 88, 12));
