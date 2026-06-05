@@ -5,6 +5,7 @@ import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
 import com.simibubi.create.content.logistics.stockTicker.PackageOrder;
 import com.simibubi.create.content.logistics.stockTicker.PackageOrderWithCrafts;
 
+
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBoard;
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsFormatter;
@@ -119,10 +120,9 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
 
     /**
      * Replace hardcoded count=1 in singleRecipe with the user-configurable
-     * craft multiplier. The rest of tickRequests carries craftingContext
-     * forward into each network's PackageOrderWithCrafts via
-     * {@code craftingContext.orderedCrafts()}, so only this call site
-     * needs to change.
+     * craft multiplier. Redirect is used instead of ModifyArg because
+     * CraftingEntry is a nested record — its constructor needs a refmap
+     * to be resolved, which is unavailable in dev without a rebuild.
      */
     @Redirect(
         method = "tickRequests",

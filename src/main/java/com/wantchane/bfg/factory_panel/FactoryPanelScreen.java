@@ -47,6 +47,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -132,10 +133,10 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		if (behaviour.targetedBy.isEmpty())
 			return;
 
-		Set<ItemStack> inputItems = new HashSet<>();
+		Set<Item> inputItems = new HashSet<>();
 		for (BigItemStack bis : inputConfig)
 			if (!bis.stack.isEmpty())
-				inputItems.add(bis.stack);
+				inputItems.add(bis.stack.getItem());
 		if (inputItems.isEmpty())
 			return;
 
@@ -148,14 +149,14 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				return result.getItem() == outputItem.getItem();
 			})
 			.filter(holder -> {
-				Set<ItemStack> requiredItems = new HashSet<>();
+				Set<Item> requiredItems = new HashSet<>();
 				for (Ingredient ingredient : holder.value().getIngredients()) {
 					if (ingredient.isEmpty())
 						continue;
 					boolean found = false;
 					for (BigItemStack bis : inputConfig) {
 						if (!bis.stack.isEmpty() && ingredient.test(bis.stack)) {
-							requiredItems.add(bis.stack);
+							requiredItems.add(bis.stack.getItem());
 							found = true;
 							break;
 						}
@@ -194,7 +195,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			BigItemStack matched = empty;
 			if (!ingredient.isEmpty())
 				for (BigItemStack wrapper : wrappers)
-					if (wrapper.count > 0 && ingredient.test(wrapper.stack)) {
+					if (ingredient.test(wrapper.stack)) {
 						matched = new BigItemStack(wrapper.stack, 1);
 						break;
 					}
@@ -850,7 +851,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				int count = (int) craftingIngredients.stream()
 					.filter(ci -> !ci.stack.isEmpty() && ItemStack.isSameItemSameComponents(ci.stack, filter))
 					.count();
-				inputAmounts.put(conn.from, count);
+				inputAmounts.put(conn.from, count * recipeCraftCount);
 			}
 		} else {
 			ItemStack restockStack = menu.ghostInventory.getStackInSlot(0);
