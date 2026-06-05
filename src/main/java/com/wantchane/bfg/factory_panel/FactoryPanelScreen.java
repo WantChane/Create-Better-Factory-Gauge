@@ -295,7 +295,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 						.withStepFunction(c -> {
 							if (menu.craftingActive) {
 								if (c.currentValue < 0)
-									return recipeCraftCount;
+									return recipeCraftCount + 1;
 								return c.shift ? 10 : recipeCraftCount;
 							}
 							return c.shift ? 10 : 1;
