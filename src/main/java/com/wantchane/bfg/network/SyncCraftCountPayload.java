@@ -35,8 +35,6 @@ public record SyncCraftCountPayload(FactoryPanelPosition position, int craftCoun
 		FactoryPanelBehaviour behaviour = FactoryPanelBehaviour.at(player.level(), position);
 		if (behaviour != null) {
 			((GhostGridAccessor) behaviour).bfg$setRecipeCraftCount(craftCount);
-			behaviour.blockEntity.sendData();
-			behaviour.blockEntity.setChanged();
 		}
 	}
 }

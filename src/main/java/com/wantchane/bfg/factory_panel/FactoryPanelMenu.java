@@ -210,15 +210,19 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	protected void saveData(FactoryPanelBehaviour behaviour) {
-		if (behaviour.panelBE().restocker || craftingActive)
+		if (behaviour.panelBE().restocker)
 			return;
 
-		List<ItemStack> grid = new ArrayList<>();
-		for (int i = 0; i < ghostInventory.getSlots(); i++)
-			grid.add(ghostInventory.getStackInSlot(i).copy());
-
-		while (grid.size() < 9)
-			grid.add(ItemStack.EMPTY);
+		List<ItemStack> grid;
+		if (craftingActive) {
+			grid = ((GhostGridAccessor) behaviour).bfg$getGhostGrid();
+		} else {
+			grid = new ArrayList<>();
+			for (int i = 0; i < ghostInventory.getSlots(); i++)
+				grid.add(ghostInventory.getStackInSlot(i).copy());
+			while (grid.size() < 9)
+				grid.add(ItemStack.EMPTY);
+		}
 
 		if (behaviour.getWorld().isClientSide()) {
 			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
