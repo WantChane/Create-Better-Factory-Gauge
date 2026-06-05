@@ -122,6 +122,23 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     }
 
     /**
+     * Multiply the promise count by recipeCraftCount when crafting so the
+     * promised amount matches the actual number of items produced per request.
+     * Targets BigItemStack(getFilter(), recipeOutput) in tickRequests.
+     */
+    @ModifyArg(
+        method = "tickRequests",
+        at = @At(value = "INVOKE", target = "Lcom/simibubi/create/content/logistics/BigItemStack;<init>(Lnet/minecraft/world/item/ItemStack;I)V", ordinal = 1),
+        index = 1
+    )
+    private int bfg$scalePromiseCount(int recipeOutput) {
+        FactoryPanelBehaviour self = bfg$self();
+        if (!self.activeCraftingArrangement.isEmpty())
+            return recipeOutput * bfg$recipeCraftCount;
+        return recipeOutput;
+    }
+
+    /**
      * Cancel the client-side direct screen opening. Instead, send a network payload
      * to trigger server-side menu opening. This runs from onShortInteract's
      * {@code displayScreen} call, which only fires after all checks pass
