@@ -60,6 +60,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanelMenu> {
 
+	private static final ResourceLocation CAL_PROMISE_LIMIT_TEX = ResourceLocation.fromNamespaceAndPath(
+		"createadditionallogistics", "textures/gui/promise_limit.png");
+
 	// Widgets
 
 	private AddressEditBox addressBox;
@@ -421,7 +424,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		graphics.pose().popPose();
 
 		if (!restocker)
-			renderOutputItem(graphics, outputConfig, mouseX, mouseY);
+			renderOutputItem(graphics, mouseX, mouseY);
 
 		renderInputGrid(graphics, mouseX, mouseY);
 
@@ -444,10 +447,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			promiseExpiration.getX() + 3, promiseExpiration.getY() + 4, 0xffeeeeee, true);
 
 		if (CALCompatHelper.isLoaded()) {
-			ResourceLocation calTex = ResourceLocation.fromNamespaceAndPath("createadditionallogistics",
-				"textures/gui/promise_limit.png");
-			if (calPromiseLimit != null) {
-				graphics.blit(calTex, calPromiseLimit.getX() - 8, calPromiseLimit.getY() - 4, 0, 0, 72, 28, 128, 32);
+						if (calPromiseLimit != null) {
+				graphics.blit(CAL_PROMISE_LIMIT_TEX, calPromiseLimit.getX() - 8, calPromiseLimit.getY() - 4, 0, 0, 72, 28, 128, 32);
 				int limit = calPromiseLimit.getState();
 				if (limit >= 0 && !restocker && outputConfig != null)
 					limit *= outputConfig.count;
@@ -456,7 +457,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 					calPromiseLimit.getX() + 3, calPromiseLimit.getY() + 4, 0xffeeeeee, true);
 			}
 			if (calAdditionalStock != null) {
-				graphics.blit(calTex, calAdditionalStock.getX() + 2, calAdditionalStock.getY() - 1, 72, 0, 47, 18, 128, 32);
+				graphics.blit(CAL_PROMISE_LIMIT_TEX, calAdditionalStock.getX() + 2, calAdditionalStock.getY() - 1, 72, 0, 47, 18, 128, 32);
 				graphics.drawString(font,
 					CreateLang.text(" " + calFormatAdditional()).component(),
 					calAdditionalStock.getX() + 15, calAdditionalStock.getY() + 4, 0xffeeeeee, true);
@@ -496,8 +497,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	}
 
 	private void renderInputItem(GuiGraphics graphics, int slot, BigItemStack itemStack, int mouseX, int mouseY) {
-		int inputX = getGuiLeft() + (restocker ? 88 : 68 + (slot % 3 * 20));
-		int inputY = getGuiTop() + (restocker ? 12 : 28) + (slot / 3 * 20);
+		int inputX = restocker ? getGuiLeft() + 88 : gridSlotX(slot);
+		int inputY = restocker ? getGuiTop() + 12 + (slot / 3 * 20) : gridSlotY(slot);
 
 		graphics.renderItem(itemStack.stack, inputX, inputY);
 		if (menu.craftingActive && !itemStack.stack.isEmpty())
@@ -568,8 +569,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			ItemStack stack = menu.ghostInventory.getStackInSlot(i);
 			if (stack.isEmpty())
 				continue;
-			int slotX = x + 68 + (i % 3 * 20);
-			int slotY = y + 28 + (i / 3 * 20);
+			int slotX = gridSlotX(i);
+			int slotY = gridSlotY(i);
 			graphics.pose().pushPose();
 			graphics.pose().translate(0, 0, 100);
 			graphics.renderItemDecorations(font, stack, slotX, slotY, "" + stack.getCount());
@@ -602,7 +603,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				.component());
 	}
 
-	private void renderOutputItem(GuiGraphics graphics, BigItemStack bigStack, int mouseX, int mouseY) {
+	private void renderOutputItem(GuiGraphics graphics, int mouseX, int mouseY) {
 		int outputX = getGuiLeft() + 160;
 		int outputY = getGuiTop() + 48;
 		graphics.renderItem(outputConfig.stack, outputX, outputY);
@@ -644,11 +645,11 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		int x = getGuiLeft();
 		int y = getGuiTop();
+			Slot slot = findSlot(mouseX, mouseY);
 
 		// Only linked items can be placed in ghost slots
 		if (!menu.craftingActive && !restocker && !getMenu().getCarried().isEmpty()) {
-			Slot slot = findSlot(mouseX, mouseY);
-			if (slot != null && slot.index >= 36 && slot.index < 45) {
+						if (isGhostSlot(slot)) {
 				if (!menu.isLinkedItem(getMenu().getCarried())) {
 					if (minecraft.player != null) {
 						minecraft.player.displayClientMessage(
@@ -665,15 +666,13 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		// Block ghost slot interactions in crafting or restocker mode
 		if (menu.craftingActive || restocker) {
-			Slot slot = findSlot(mouseX, mouseY);
-			if (slot != null && slot.index >= 36 && slot.index < 45)
+						if (isGhostSlot(slot))
 				return true;
 		}
 
 		// Left-click last instance of an item: disconnect the connection
 		if (!menu.craftingActive && !restocker && pButton == 0 && getMenu().getCarried().isEmpty()) {
-			Slot slot = findSlot(mouseX, mouseY);
-			if (slot != null && slot.index >= 36 && slot.index < 45) {
+						if (isGhostSlot(slot)) {
 				int ghostIdx = slot.index - 36;
 				ItemStack clickedItem = menu.ghostInventory.getStackInSlot(ghostIdx);
 				if (!clickedItem.isEmpty()) {
@@ -698,8 +697,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		// Right-click ghost slot: disconnect the connection
 		if (!menu.craftingActive && !restocker && pButton == 1) {
-			Slot slot = findSlot(mouseX, mouseY);
-			if (slot != null && slot.index >= 36 && slot.index < 45) {
+						if (isGhostSlot(slot)) {
 				int ghostIdx = slot.index - 36;
 				ItemStack clickedItem = menu.ghostInventory.getStackInSlot(ghostIdx);
 				if (!clickedItem.isEmpty()) {
@@ -749,8 +747,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		if (menu.craftingActive) {
 			boolean overGrid = false;
 			for (int i = 0; i < 9; i++) {
-				int gx = x + 68 + (i % 3 * 20);
-				int gy = y + 28 + (i / 3 * 20);
+				int gx = gridSlotX(i);
+				int gy = gridSlotY(i);
 				if (mouseX >= gx && mouseX < gx + 16 && mouseY >= gy && mouseY < gy + 16) {
 					overGrid = true;
 					break;
@@ -771,8 +769,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 		if (!restocker) {
 			for (int i = 0; i < 9; i++) {
-				int inputX = x + 68 + (i % 3 * 20);
-				int inputY = y + 28 + (i / 3 * 20);
+				int inputX = gridSlotX(i);
+				int inputY = gridSlotY(i);
 				if (mouseX >= inputX && mouseX < inputX + 16 && mouseY >= inputY && mouseY < inputY + 16) {
 					ItemStack slotItem = menu.ghostInventory.getStackInSlot(i);
 					if (slotItem.isEmpty())
@@ -943,5 +941,17 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				return slot;
 		}
 		return null;
+	}
+
+	private static boolean isGhostSlot(Slot slot) {
+		return slot != null && slot.index >= 36 && slot.index < 45;
+	}
+
+	private int gridSlotX(int index) {
+		return getGuiLeft() + 68 + (index % 3 * 20);
+	}
+
+	private int gridSlotY(int index) {
+		return getGuiTop() + 28 + (index / 3 * 20);
 	}
 }
