@@ -768,17 +768,14 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		}
 
 		if (!restocker) {
-			for (int i = 0; i < 9; i++) {
-				int inputX = gridSlotX(i);
-				int inputY = gridSlotY(i);
-				if (mouseX >= inputX && mouseX < inputX + 16 && mouseY >= inputY && mouseY < inputY + 16) {
-					ItemStack slotItem = menu.ghostInventory.getStackInSlot(i);
-					if (slotItem.isEmpty())
-						return true;
-					int delta = (int) Math.signum(scrollY) * (hasShiftDown() ? 10 : 1);
-					slotItem.setCount(Mth.clamp(slotItem.getCount() + delta, 1, 64));
+			int gridSlot = getGridSlotIndex(mouseX, mouseY);
+			if (gridSlot != -1) {
+				ItemStack slotItem = menu.ghostInventory.getStackInSlot(gridSlot);
+				if (slotItem.isEmpty())
 					return true;
-				}
+				int delta = (int) Math.signum(scrollY) * (hasShiftDown() ? 10 : 1);
+				slotItem.setCount(Mth.clamp(slotItem.getCount() + delta, 1, 64));
+				return true;
 			}
 
 			int outputX = x + 160;
@@ -953,5 +950,15 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 	private int gridSlotY(int index) {
 		return getGuiTop() + 28 + (index / 3 * 20);
+	}
+
+	private int getGridSlotIndex(double mouseX, double mouseY) {
+		for (int i = 0; i < 9; i++) {
+			int sx = gridSlotX(i);
+			int sy = gridSlotY(i);
+			if (mouseX >= sx && mouseX < sx + 16 && mouseY >= sy && mouseY < sy + 16)
+				return i;
+		}
+		return -1;
 	}
 }
