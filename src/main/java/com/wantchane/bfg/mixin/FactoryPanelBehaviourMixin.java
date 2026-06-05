@@ -46,19 +46,6 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         bfg$ghostGrid = new ArrayList<>(grid);
     }
 
-    @Unique
-    private List<ItemStack> bfg$craftingBackup = new ArrayList<>();
-
-    @Unique
-    public List<ItemStack> bfg$getCraftingBackup() {
-        return bfg$craftingBackup;
-    }
-
-    @Unique
-    public void bfg$setCraftingBackup(List<ItemStack> grid) {
-        bfg$craftingBackup = new ArrayList<>(grid);
-    }
-
     @Inject(method = "<init>", at = @At("TAIL"))
     private void bfg$initGhostGrid(CallbackInfo ci) {
         for (int i = 0; i < 9; i++)

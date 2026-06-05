@@ -834,7 +834,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				grid.add(menu.ghostInventory.getStackInSlot(i).copy());
 			((GhostGridAccessor) behaviour).bfg$setGhostGrid(grid);
-			((GhostGridAccessor) behaviour).bfg$setCraftingBackup(grid);
 
 			for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 				menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
@@ -874,18 +873,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 			menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
 
-		// Restore from crafting backup first (isolated from NBT sync),
-		// fall back to persisted ghost grid
-		GhostGridAccessor accessor = (GhostGridAccessor) behaviour;
-		List<ItemStack> saved = accessor.bfg$getCraftingBackup();
-		boolean hasBackup = false;
-		for (ItemStack s : saved) {
-			if (!s.isEmpty()) { hasBackup = true; break; }
-		}
-		if (!hasBackup)
-			saved = accessor.bfg$getGhostGrid();
-		else
-			accessor.bfg$setCraftingBackup(List.of()); // consumed
+			List<ItemStack> saved = ((GhostGridAccessor) behaviour).bfg$getGhostGrid();
 
 		for (int i = 0; i < Math.min(9, saved.size()); i++)
 			menu.ghostInventory.setStackInSlot(i, saved.get(i).copy());
