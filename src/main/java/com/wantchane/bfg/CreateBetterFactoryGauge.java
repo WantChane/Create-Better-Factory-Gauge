@@ -11,7 +11,12 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
+
+import java.util.function.BiConsumer;
 
 import org.slf4j.Logger;
 
@@ -31,30 +36,20 @@ public class CreateBetterFactoryGauge {
 
         modEventBus.addListener(RegisterPayloadHandlersEvent.class, event -> {
             PayloadRegistrar registrar = event.registrar("1");
-            registrar.playToServer(
-                OpenFactoryPanelPayload.TYPE,
-                OpenFactoryPanelPayload.STREAM_CODEC,
-                (payload, context) -> context.enqueueWork(() -> {
-                    if (context.player() instanceof ServerPlayer sp)
-                        payload.handle(sp);
-                })
-            );
-            registrar.playToServer(
-                SyncGhostGridPayload.TYPE,
-                SyncGhostGridPayload.STREAM_CODEC,
-                (payload, context) -> context.enqueueWork(() -> {
-                    if (context.player() instanceof ServerPlayer sp)
-                        payload.handle(sp);
-                })
-            );
-            registrar.playToServer(
-                SyncCraftCountPayload.TYPE,
-                SyncCraftCountPayload.STREAM_CODEC,
-                (payload, context) -> context.enqueueWork(() -> {
-                    if (context.player() instanceof ServerPlayer sp)
-                        payload.handle(sp);
-                })
-            );
+            registerPlayToServer(registrar, OpenFactoryPanelPayload.TYPE, OpenFactoryPanelPayload.STREAM_CODEC, OpenFactoryPanelPayload::handle);
+            registerPlayToServer(registrar, SyncGhostGridPayload.TYPE, SyncGhostGridPayload.STREAM_CODEC, SyncGhostGridPayload::handle);
+            registerPlayToServer(registrar, SyncCraftCountPayload.TYPE, SyncCraftCountPayload.STREAM_CODEC, SyncCraftCountPayload::handle);
         });
+    }
+
+    private static <T extends CustomPacketPayload> void registerPlayToServer(
+        PayloadRegistrar registrar, CustomPacketPayload.Type<T> type,
+        StreamCodec<RegistryFriendlyByteBuf, T> codec, BiConsumer<T, ServerPlayer> handler) {
+        registrar.playToServer(type, codec,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof ServerPlayer sp)
+                    handler.accept(payload, sp);
+            })
+        );
     }
 }

@@ -31,13 +31,20 @@ import java.util.List;
 public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	public boolean craftingActive;
+	private boolean restocker;
+
+	public boolean isInteractionLocked() {
+		return craftingActive || restocker;
+	}
 
 	public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
 		super(type, containerId, inv, buf);
+		restocker = contentHolder.panelBE().restocker;
 	}
 
 	public FactoryPanelMenu(MenuType<?> type, int containerId, Inventory inv, FactoryPanelBehaviour behaviour) {
 		super(type, containerId, inv, behaviour);
+		restocker = behaviour.panelBE().restocker;
 	}
 
 	public static FactoryPanelMenu create(int containerId, Inventory inv, FactoryPanelBehaviour behaviour) {
@@ -53,8 +60,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	protected ItemStackHandler createGhostInventory() {
-		boolean restocker = contentHolder.panelBE().restocker;
-		if (restocker)
+		if (contentHolder.panelBE().restocker)
 			return new ItemStackHandler(1);
 
 		boolean[] loading = { true };
@@ -149,7 +155,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	protected void addSlots() {
 		boolean restocker = contentHolder.panelBE().restocker;
 		int baseHeight = restocker ? 104 : 160;
-		int calGap = CALCompatHelper.isLoaded() ? 22 : 0;
+		int calGap = CALCompatHelper.getVerticalGap();
 		addPlayerSlots(16, baseHeight + 18 + 4 + calGap);
 
 		if (restocker) {
@@ -180,7 +186,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	public ItemStack quickMoveStack(Player player, int index) {
-		if (craftingActive || contentHolder.panelBE().restocker)
+		if (isInteractionLocked())
 			return ItemStack.EMPTY;
 		return super.quickMoveStack(player, index);
 	}
@@ -206,7 +212,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	public boolean canDragTo(Slot slotIn) {
-		if (craftingActive || contentHolder.panelBE().restocker)
+		if (isInteractionLocked())
 			return false;
 		if (slotIn.index >= 36)
 			return !getCarried().isEmpty();
@@ -215,14 +221,14 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	public void clicked(int slotId, int dragType, ClickType clickTypeIn, Player player) {
-		if (slotId >= 36 && (craftingActive || contentHolder.panelBE().restocker))
+		if (slotId >= 36 && isInteractionLocked())
 			return;
 		super.clicked(slotId, dragType, clickTypeIn, player);
 	}
 
 	@Override
 	protected void saveData(FactoryPanelBehaviour behaviour) {
-		if (behaviour.panelBE().restocker)
+		if (this.restocker)
 			return;
 
 		List<ItemStack> grid;

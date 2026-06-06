@@ -66,6 +66,10 @@ public class CALCompatHelper {
 		return loaded;
 	}
 
+	public static int getVerticalGap() {
+		return isLoaded() ? 22 : 0;
+	}
+
 	public static int getPromiseLimit(FactoryPanelBehaviour behaviour) {
 		try {
 			return (int) getPromiseLimit.invoke(behaviour);

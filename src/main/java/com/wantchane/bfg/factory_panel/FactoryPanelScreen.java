@@ -176,7 +176,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int sizeX = FACTORY_GAUGE_BOTTOM.getWidth();
 		AllGuiTextures contentTex = restocker ? FACTORY_GAUGE_RESTOCK : FACTORY_GAUGE_RECIPE;
 		int baseHeight = contentTex.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
-		int calGap = CALCompatHelper.isLoaded() ? 22 : 0;
+		int calGap = CALCompatHelper.getVerticalGap();
 		int windowHeight = baseHeight + 4 + PLAYER_INVENTORY.getHeight() + calGap;
 		setWindowSize(sizeX, windowHeight);
 		super.init();
@@ -362,7 +362,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int baseHeight = contentTex.getHeight() + FACTORY_GAUGE_BOTTOM.getHeight();
 		FACTORY_GAUGE_BOTTOM.render(graphics, x, y + contentTex.getHeight());
 
-		renderPlayerInventory(graphics, x + 8, y + baseHeight + 4 + (CALCompatHelper.isLoaded() ? 22 : 0));
+		renderPlayerInventory(graphics, x + 8, y + baseHeight + 4 + CALCompatHelper.getVerticalGap());
 
 		Component title = CreateLang
 			.translate(restocker ? "gui.factory_panel.title_as_restocker" : "gui.factory_panel.title_as_recipe")
@@ -521,7 +521,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	protected void renderForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
 		super.renderForeground(graphics, mouseX, mouseY, partialTicks);
 
-		if (menu.craftingActive || restocker)
+		if (menu.isInteractionLocked())
 			return;
 
 		int x = getGuiLeft();
@@ -542,7 +542,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 	@Override
 	protected List<Component> getTooltipFromContainerItem(ItemStack stack) {
-		if (!(hoveredSlot instanceof SlotItemHandler) || menu.craftingActive || restocker)
+		if (!(hoveredSlot instanceof SlotItemHandler) || menu.isInteractionLocked())
 			return super.getTooltipFromContainerItem(stack);
 
 		int slotIndex = hoveredSlot.getSlotIndex();
@@ -610,13 +610,13 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			Slot slot = findSlot(mouseX, mouseY);
 
 		// Block ghost slot interactions in crafting or restocker mode
-		if (menu.craftingActive || restocker) {
+		if (menu.isInteractionLocked()) {
 						if (isGhostSlot(slot))
 				return true;
 		}
 
 		// Left-click last instance of an item: disconnect the connection
-		if (!menu.craftingActive && !restocker && pButton == 0 && getMenu().getCarried().isEmpty()) {
+		if (!menu.isInteractionLocked() && pButton == 0 && getMenu().getCarried().isEmpty()) {
 						if (isGhostSlot(slot)) {
 				int ghostIdx = slot.index - 36;
 				ItemStack clickedItem = menu.ghostInventory.getStackInSlot(ghostIdx);
@@ -641,7 +641,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		}
 
 		// Right-click ghost slot: disconnect the connection
-		if (!menu.craftingActive && !restocker && pButton == 1) {
+		if (!menu.isInteractionLocked() && pButton == 1) {
 						if (isGhostSlot(slot)) {
 				int ghostIdx = slot.index - 36;
 				ItemStack clickedItem = menu.ghostInventory.getStackInSlot(ghostIdx);
@@ -767,7 +767,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	private void sendIt(FactoryPanelPosition removePos, boolean clearPromises) {
 		Map<FactoryPanelPosition, Integer> inputAmounts = new HashMap<>();
 
-		if (!menu.craftingActive && !restocker) {
+		if (!menu.isInteractionLocked()) {
 			for (FactoryPanelConnection conn : connections) {
 				FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
 				if (source == null)
@@ -859,7 +859,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	}
 
 	private void rebuildGhostInventory() {
-		if (restocker || menu.craftingActive)
+		if (menu.isInteractionLocked())
 			return;
 
 		for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
