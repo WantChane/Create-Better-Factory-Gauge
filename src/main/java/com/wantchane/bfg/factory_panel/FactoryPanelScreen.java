@@ -743,8 +743,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			int outputX = x + 160;
 			int outputY = y + 48;
 			if (mouseX >= outputX && mouseX < outputX + 16 && mouseY >= outputY && mouseY < outputY + 16) {
-				outputConfig.count = Mth
-					.clamp((int) (outputConfig.count + Math.signum(scrollY) * (hasShiftDown() ? 10 : 1)), 1, 64);
+				outputConfig.count = Math.max(1, (int) (outputConfig.count + Math.signum(scrollY) * (hasShiftDown() ? 10 : 1)));
 				return true;
 			}
 		}
