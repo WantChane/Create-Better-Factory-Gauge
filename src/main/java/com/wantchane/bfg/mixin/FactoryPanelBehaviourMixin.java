@@ -76,6 +76,20 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     }
 
     /**
+     * Reset custom fields when all connections are disconnected (reset/disable/destroy).
+     * Without this, bfg$recipeCraftCount and bfg$ghostGrid survive a reset and
+     * get written back into NBT via bfg$writeGhostGridToNbt, so the old crafting
+     * multiplier reappears after reconfiguring the panel.
+     */
+    @Inject(method = "disconnectAll", at = @At("TAIL"))
+    private void bfg$resetCustomFieldsOnDisconnect(CallbackInfo ci) {
+        bfg$recipeCraftCount = 1;
+        bfg$ghostGrid = new ArrayList<>();
+        for (int i = 0; i < 9; i++)
+            bfg$ghostGrid.add(ItemStack.EMPTY);
+    }
+
+    /**
      * Replace aggregated connection items with per-slot ghost grid items in PackageOrder.
      * Follows Redstone Requester pattern: each ghost slot = one BigItemStack with its count.
      * Uses two-arg BigItemStack constructor — the one-arg constructor hardcodes count=1.

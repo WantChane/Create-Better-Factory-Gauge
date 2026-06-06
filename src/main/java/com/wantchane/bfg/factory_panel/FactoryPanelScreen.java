@@ -248,6 +248,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			if (!restocker)
 				for (int i = 0; i < menu.ghostInventory.getSlots(); i++)
 					menu.ghostInventory.setStackInSlot(i, ItemStack.EMPTY);
+			recipeCraftCount = 1;
+			PacketDistributor.sendToServer(new SyncCraftCountPayload(behaviour.getPanelPosition(), 1));
 			sendIt(null, false);
 			onClose();
 		});
