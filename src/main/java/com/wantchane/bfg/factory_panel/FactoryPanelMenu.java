@@ -1,13 +1,16 @@
 package com.wantchane.bfg.factory_panel;
 
+import com.simibubi.create.AllSoundEvents;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition;
 import com.simibubi.create.foundation.gui.menu.GhostItemMenu;
+import com.simibubi.create.foundation.utility.CreateLang;
 import com.wantchane.bfg.BFGMenuTypes;
 import com.wantchane.bfg.compat.CALCompatHelper;
 import com.wantchane.bfg.network.SyncGhostGridPayload;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -51,9 +54,30 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	@Override
 	protected ItemStackHandler createGhostInventory() {
 		boolean restocker = contentHolder.panelBE().restocker;
-		ItemStackHandler inventory = new ItemStackHandler(restocker ? 1 : 9);
 		if (restocker)
-			return inventory;
+			return new ItemStackHandler(1);
+
+		boolean[] loading = { true };
+
+		ItemStackHandler inventory = new ItemStackHandler(9) {
+			@Override
+			public void setStackInSlot(int slot, ItemStack stack) {
+				if (!stack.isEmpty() && !isLinkedItem(stack)) {
+					if (!loading[0] && contentHolder.getWorld().isClientSide()) {
+						var player = Minecraft.getInstance().player;
+						if (player != null) {
+							player.displayClientMessage(
+								CreateLang.translate("gui.factory_panel.unlinked_item").style(ChatFormatting.RED)
+									.component(),
+								true);
+							AllSoundEvents.DENY.playAt(player.level(), player.blockPosition(), 1, 1, false);
+						}
+					}
+					return;
+				}
+				super.setStackInSlot(slot, stack);
+			}
+		};
 
 		// Load from persisted ghost grid first
 		List<ItemStack> saved = ((GhostGridAccessor) contentHolder).bfg$getGhostGrid();
@@ -95,6 +119,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 					}
 				}
 			}
+			loading[0] = false;
 			return inventory;
 		}
 
@@ -111,6 +136,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 			if (slot >= 9)
 				break;
 		}
+		loading[0] = false;
 		return inventory;
 	}
 
@@ -156,11 +182,6 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	public ItemStack quickMoveStack(Player player, int index) {
 		if (craftingActive || contentHolder.panelBE().restocker)
 			return ItemStack.EMPTY;
-		if (index < 36) {
-			ItemStack stackToInsert = slots.get(index).getItem();
-			if (!isLinkedItem(stackToInsert))
-				return ItemStack.EMPTY;
-		}
 		return super.quickMoveStack(player, index);
 	}
 
@@ -187,24 +208,15 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	public boolean canDragTo(Slot slotIn) {
 		if (craftingActive || contentHolder.panelBE().restocker)
 			return false;
-		if (slotIn.index >= 36) {
-			ItemStack carried = getCarried();
-			if (carried.isEmpty())
-				return false;
-			return isLinkedItem(carried);
-		}
+		if (slotIn.index >= 36)
+			return !getCarried().isEmpty();
 		return super.canDragTo(slotIn);
 	}
 
 	@Override
 	public void clicked(int slotId, int dragType, ClickType clickTypeIn, Player player) {
-		if (slotId >= 36) {
-			if (craftingActive || contentHolder.panelBE().restocker)
-				return;
-			ItemStack carried = getCarried();
-			if (!carried.isEmpty() && !isLinkedItem(carried))
-				return;
-		}
+		if (slotId >= 36 && (craftingActive || contentHolder.panelBE().restocker))
+			return;
 		super.clicked(slotId, dragType, clickTypeIn, player);
 	}
 

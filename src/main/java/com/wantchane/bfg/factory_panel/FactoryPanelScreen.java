@@ -15,7 +15,7 @@ import java.util.Set;
 
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllRecipeTypes;
-import com.simibubi.create.AllSoundEvents;
+
 import com.simibubi.create.content.logistics.AddressEditBox;
 import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour;
@@ -608,23 +608,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int x = getGuiLeft();
 		int y = getGuiTop();
 			Slot slot = findSlot(mouseX, mouseY);
-
-		// Only linked items can be placed in ghost slots
-		if (!menu.craftingActive && !restocker && !getMenu().getCarried().isEmpty()) {
-						if (isGhostSlot(slot)) {
-				if (!menu.isLinkedItem(getMenu().getCarried())) {
-					if (minecraft.player != null) {
-						minecraft.player.displayClientMessage(
-							CreateLang.translate("gui.factory_panel.unlinked_item").style(ChatFormatting.RED)
-								.component(),
-							true);
-						AllSoundEvents.DENY.playAt(minecraft.player.level(), minecraft.player.blockPosition(), 1, 1,
-							false);
-					}
-					return true;
-				}
-			}
-		}
 
 		// Block ghost slot interactions in crafting or restocker mode
 		if (menu.craftingActive || restocker) {
