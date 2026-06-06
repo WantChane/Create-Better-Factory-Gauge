@@ -50,6 +50,11 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     }
 
     @Unique
+    private boolean bfg$isCraftingActive() {
+        return !bfg$self().activeCraftingArrangement.isEmpty();
+    }
+
+    @Unique
     public List<ItemStack> bfg$getGhostGrid() {
         return bfg$ghostGrid;
     }
@@ -69,10 +74,16 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         bfg$recipeCraftCount = Mth.clamp(count, 1, 64);
     }
 
-    @Inject(method = "<init>", at = @At("TAIL"))
-    private void bfg$initGhostGrid(CallbackInfo ci) {
+    @Unique
+    private void bfg$initEmptyGhostGrid() {
+        bfg$ghostGrid = new ArrayList<>();
         for (int i = 0; i < 9; i++)
             bfg$ghostGrid.add(ItemStack.EMPTY);
+    }
+
+    @Inject(method = "<init>", at = @At("TAIL"))
+    private void bfg$initGhostGrid(CallbackInfo ci) {
+        bfg$initEmptyGhostGrid();
     }
 
     /**
@@ -84,9 +95,7 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     @Inject(method = "disconnectAll", at = @At("TAIL"))
     private void bfg$resetCustomFieldsOnDisconnect(CallbackInfo ci) {
         bfg$recipeCraftCount = 1;
-        bfg$ghostGrid = new ArrayList<>();
-        for (int i = 0; i < 9; i++)
-            bfg$ghostGrid.add(ItemStack.EMPTY);
+        bfg$initEmptyGhostGrid();
     }
 
     /**
@@ -108,7 +117,7 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
         // Crafting mode: use activeCraftingArrangement (per-recipe-slot, preserves duplicates).
         // Ghost grid is per-connection and collapses duplicate ingredients, causing
         // recipes with repeated items (e.g. 2 iron nuggets + 2 andesite) to request too few.
-        if (!self.activeCraftingArrangement.isEmpty()) {
+        if (bfg$isCraftingActive()) {
             List<BigItemStack> result = new ArrayList<>();
             for (ItemStack item : self.activeCraftingArrangement) {
                 if (!item.isEmpty())
@@ -159,7 +168,7 @@ public abstract class FactoryPanelBehaviourMixin implements GhostGridAccessor {
     )
     private int bfg$scalePromiseCount(int recipeOutput) {
         FactoryPanelBehaviour self = bfg$self();
-        if (!self.activeCraftingArrangement.isEmpty())
+        if (bfg$isCraftingActive())
             return recipeOutput * bfg$recipeCraftCount;
         return recipeOutput;
     }

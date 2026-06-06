@@ -628,7 +628,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 							instanceCount++;
 					}
 					if (instanceCount == 1) {
-						FactoryPanelPosition toRemove = findConnectionForItem(clickedItem);
+						FactoryPanelPosition toRemove = menu.findConnectionForItem(clickedItem);
 						if (toRemove != null) {
 							menu.ghostInventory.setStackInSlot(ghostIdx, ItemStack.EMPTY);
 							sendIt(toRemove, false);
@@ -646,7 +646,7 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				int ghostIdx = slot.index - 36;
 				ItemStack clickedItem = menu.ghostInventory.getStackInSlot(ghostIdx);
 				if (!clickedItem.isEmpty()) {
-					FactoryPanelPosition toRemove = findConnectionForItem(clickedItem);
+					FactoryPanelPosition toRemove = menu.findConnectionForItem(clickedItem);
 					if (toRemove != null) {
 						menu.ghostInventory.setStackInSlot(ghostIdx, ItemStack.EMPTY);
 						sendIt(toRemove, false);
@@ -705,7 +705,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 
 			if (overGrid || overOutput) {
 				int delta = (int) Math.signum(scrollY) * (hasShiftDown() ? 10 : 1);
-				recipeCraftCount = Mth.clamp(recipeCraftCount + delta, 1, 64);
+				((GhostGridAccessor) behaviour).bfg$setRecipeCraftCount(recipeCraftCount + delta);
+				recipeCraftCount = ((GhostGridAccessor) behaviour).bfg$getRecipeCraftCount();
 				PacketDistributor.sendToServer(new SyncCraftCountPayload(behaviour.getPanelPosition(), recipeCraftCount));
 				return true;
 			}
@@ -848,15 +849,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 	}
 
 	//
-
-	private FactoryPanelPosition findConnectionForItem(ItemStack item) {
-		for (FactoryPanelConnection conn : connections) {
-			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(minecraft.level, conn.from);
-			if (source != null && ItemStack.isSameItemSameComponents(source.getFilter(), item))
-				return conn.from;
-		}
-		return null;
-	}
 
 	private void rebuildGhostInventory() {
 		if (menu.isInteractionLocked())

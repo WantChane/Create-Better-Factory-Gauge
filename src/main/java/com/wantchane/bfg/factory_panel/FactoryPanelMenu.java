@@ -192,14 +192,18 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 	}
 
 	public boolean isLinkedItem(ItemStack stack) {
+		return findConnectionForItem(stack) != null;
+	}
+
+	public FactoryPanelPosition findConnectionForItem(ItemStack stack) {
 		if (stack.isEmpty())
-			return false;
+			return null;
 		for (FactoryPanelConnection conn : contentHolder.targetedBy.values()) {
 			FactoryPanelBehaviour source = FactoryPanelBehaviour.at(contentHolder.getWorld(), conn.from);
 			if (source != null && ItemStack.isSameItemSameComponents(source.getFilter(), stack))
-				return true;
+				return conn.from;
 		}
-		return false;
+		return null;
 	}
 
 	public void clearUnlinkedItems(ItemStackHandler inventory) {
