@@ -52,9 +52,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.ShapedRecipe;
-
-import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.neoforged.neoforge.items.SlotItemHandler;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -119,7 +116,8 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 				rebuildGhostInventory();
 			}
 		} else {
-			craftingIngredients = convertRecipeToPackageOrderContext(availableCraftingRecipe, inputConfig);
+			craftingIngredients = com.simibubi.create.content.logistics.factoryBoard.FactoryPanelScreen
+				.convertRecipeToPackageOrderContext(availableCraftingRecipe, inputConfig, false);
 		}
 	}
 
@@ -169,45 +167,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 			.findAny()
 			.map(holder -> (CraftingRecipe) holder.value())
 			.orElse(null);
-	}
-
-	public static List<BigItemStack> convertRecipeToPackageOrderContext(CraftingRecipe recipe,
-		List<BigItemStack> inputConfig) {
-		List<BigItemStack> result = new ArrayList<>();
-		BigItemStack empty = new BigItemStack(ItemStack.EMPTY, 1);
-		NonNullList<Ingredient> ingredients = recipe.getIngredients();
-		List<BigItemStack> wrappers = BigItemStack.duplicateWrappers(inputConfig);
-
-		int width = Math.min(3, ingredients.size());
-		int height = Math.min(3, ingredients.size() / 3 + 1);
-		if (recipe instanceof ShapedRecipe shaped) {
-			width = shaped.getWidth();
-			height = shaped.getHeight();
-		}
-		if (height == 1)
-			for (int i = 0; i < 3; i++)
-				result.add(empty);
-		if (width == 1)
-			result.add(empty);
-
-		for (int i = 0; i < ingredients.size(); i++) {
-			Ingredient ingredient = ingredients.get(i);
-			BigItemStack matched = empty;
-			if (!ingredient.isEmpty())
-				for (BigItemStack wrapper : wrappers)
-					if (ingredient.test(wrapper.stack)) {
-						matched = new BigItemStack(wrapper.stack, 1);
-						break;
-					}
-			result.add(matched);
-			if (width < 3 && (i + 1) % width == 0)
-				for (int j = 0; j < 3 - width; j++)
-					if (result.size() < 9)
-						result.add(empty);
-		}
-		while (result.size() < 9)
-			result.add(empty);
-		return result;
 	}
 
 	//
