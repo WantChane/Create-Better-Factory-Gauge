@@ -609,12 +609,6 @@ public class FactoryPanelScreen extends AbstractSimiContainerScreen<FactoryPanel
 		int y = getGuiTop();
 			Slot slot = findSlot(mouseX, mouseY);
 
-		// Block ghost slot interactions in crafting or restocker mode
-		if (menu.isInteractionLocked()) {
-						if (isGhostSlot(slot))
-				return true;
-		}
-
 		// Left-click last instance of an item: disconnect the connection
 		if (!menu.isInteractionLocked() && pButton == 0 && getMenu().getCarried().isEmpty()) {
 						if (isGhostSlot(slot)) {

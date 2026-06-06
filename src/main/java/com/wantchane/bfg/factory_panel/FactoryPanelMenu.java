@@ -16,7 +16,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ClickType;
+
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -68,7 +68,7 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 		ItemStackHandler inventory = new ItemStackHandler(9) {
 			@Override
 			public void setStackInSlot(int slot, ItemStack stack) {
-				if (!stack.isEmpty() && !isLinkedItem(stack)) {
+				if (!stack.isEmpty() && (isInteractionLocked() || !isLinkedItem(stack))) {
 					if (!loading[0] && contentHolder.getWorld().isClientSide()) {
 						var player = Minecraft.getInstance().player;
 						if (player != null) {
@@ -159,7 +159,10 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 		addPlayerSlots(16, baseHeight + 18 + 4 + calGap);
 
 		if (restocker) {
-			addSlot(new SlotItemHandler(ghostInventory, 0, 88, 12));
+			addSlot(new SlotItemHandler(ghostInventory, 0, 88, 12) {
+				@Override
+				public boolean isActive() { return false; }
+			});
 		} else {
 			for (int i = 0; i < 9; i++) {
 				int col = i % 3;
@@ -186,8 +189,6 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	public ItemStack quickMoveStack(Player player, int index) {
-		if (isInteractionLocked())
-			return ItemStack.EMPTY;
 		return super.quickMoveStack(player, index);
 	}
 
@@ -216,18 +217,9 @@ public class FactoryPanelMenu extends GhostItemMenu<FactoryPanelBehaviour> {
 
 	@Override
 	public boolean canDragTo(Slot slotIn) {
-		if (isInteractionLocked())
-			return false;
 		if (slotIn.index >= 36)
 			return !getCarried().isEmpty();
 		return super.canDragTo(slotIn);
-	}
-
-	@Override
-	public void clicked(int slotId, int dragType, ClickType clickTypeIn, Player player) {
-		if (slotId >= 36 && isInteractionLocked())
-			return;
-		super.clicked(slotId, dragType, clickTypeIn, player);
 	}
 
 	@Override
