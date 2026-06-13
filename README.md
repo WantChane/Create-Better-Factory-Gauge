@@ -1,8 +1,69 @@
 # Create: Better Factory Gauge
 
+<span id="english-version"></span>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NeoForge](https://img.shields.io/badge/NeoForge-1.21.1-blue)](https://neoforged.net/)
 [![Create Version](https://img.shields.io/badge/Create-6.0.0+-brightgreen)](https://modrinth.com/mod/create)
+
+**📘 [中文版本 (Chinese Version)](#chinese-version)**
+
+---
+
+**Create: Better Factory Gauge** is a **NeoForge** addon for [Create](https://modrinth.com/mod/create). It enhances the vanilla **Factory Gauge** with more flexible request configuration and batch crafting.
+
+> This project made extensive use of AI-assisted programming (code generation, logic optimisation, documentation writing, etc.).
+
+## Important Notes
+
+- **Backup your saves**: Before installing or using this mod, please **backup your game saves or world folder**. Although this mod has been tested in singleplayer, unexpected bugs or data corruption may still occur.
+- **Multiplayer**: This mod has **not** been systematically tested in multiplayer environments (servers or LAN). There may be synchronisation issues, packet conflicts, or performance anomalies. It is recommended to use it only in singleplayer worlds, or to thoroughly test it yourself before deploying on a server.
+
+## Features
+
+### 1️. Non‑Crafting Mode – Linked Item Request
+
+In non‑crafting mode, you can put a **linked item** (dragged from your inventory or JEI) into the Factory Gauge.
+
+![Non-Crafting Mode](docs/images/非合成模式.png)
+
+### 2️. Crafting Mode – Multiplier Request
+
+When the Factory Gauge is in **crafting mode**, you can change the **material multiplier** for each request (default: 1x).
+
+![Crafting Mode](docs/images/合成模式.png)
+
+### 3. Target Storage Amount
+
+Adjust the maximum target storage amount to 1000 items per stack.
+
+![Target Storage Amount](docs/images/目标存储数量.png)
+
+## License
+
+This project is licensed under the **MIT License** – you are free to use, modify, and distribute it, including in modpacks and on servers, as long as you retain the original copyright notice. See the [LICENSE](LICENSE) file for details.
+
+## Credits
+
+- [Create team](https://github.com/Creators-of-Create) for their excellent mod and API.
+- NeoForge community for the powerful modding environment.
+- Special thanks to AI-assisted programming tools for code suggestions, debugging help, and documentation support.
+
+---
+
+
+
+# Create: Better Factory Gauge
+
+<span id="chinese-version"></span>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![NeoForge](https://img.shields.io/badge/NeoForge-1.21.1-blue)](https://neoforged.net/)
+[![Create Version](https://img.shields.io/badge/Create-6.0.0+-brightgreen)](https://modrinth.com/mod/create)
+
+**📘 [English Version](#english-version)**
+
+---
 
 **Create: Better Factory Gauge** 是一个基于 **NeoForge** 的 [Create（机械动力）](https://modrinth.com/mod/create) 附属模组，为原版的 **工厂仪表（Factory Gauge）** 增加了更灵活的请求配置与批量合成功能。
 
@@ -24,11 +85,13 @@
 ### 2️. 合成模式 – 倍数请求
 
 当工厂仪表处于**合成模式**时，你可以修改**单次请求的材料倍数**（默认为 1 倍）。
+
 ![合成模式](docs/images/合成模式.png)
 
 ### 3. 目标存储数量
 
 调整最大值为1000个/组
+
 ![目标存储数量](docs/images/目标存储数量.png)
 
 ## 许可证
