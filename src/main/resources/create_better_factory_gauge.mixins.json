@@ -1,8 +1,12 @@
 {
   "required": true,
+  "minVersion": "0.8",
   "package": "com.wantchane.bfg.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "refmap": "create_better_factory_gauge.refmap.json",
+  "mixins": [
+    "FactoryPanelBehaviourMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   },
