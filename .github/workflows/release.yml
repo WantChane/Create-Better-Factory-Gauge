@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Read version from gradle.properties
+        id: props
+        run: |
+          MOD_VERSION=$(grep -oP '^mod_version\s*=\s*\K.+' gradle.properties | xargs)
+          MINECRAFT_VERSION=$(grep -oP '^minecraft_version\s*=\s*\K.+' gradle.properties | xargs)
+          MOD_ID=$(grep -oP '^mod_id\s*=\s*\K.+' gradle.properties | xargs)
+          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "minecraft_version=$MINECRAFT_VERSION" >> $GITHUB_OUTPUT
+          echo "mod_id=$MOD_ID" >> $GITHUB_OUTPUT
+
+      - name: Validate tag matches mod_version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          MOD_VERSION="${{ steps.props.outputs.mod_version }}"
+          if [ "$TAG_VERSION" != "$MOD_VERSION" ]; then
+            echo "::error::Tag 'v${TAG_VERSION}' does not match mod_version '${MOD_VERSION}' from gradle.properties"
+            echo "::error::Please push a tag that matches the mod_version in gradle.properties (v${MOD_VERSION})"
+            exit 1
+          fi
+          echo "Version validation passed: v$TAG_VERSION == mod_version $MOD_VERSION"
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.props.outputs.mod_version }} for Minecraft ${{ steps.props.outputs.minecraft_version }}"
+          files: "build/libs/${{ steps.props.outputs.mod_id }}-${{ steps.props.outputs.mod_version }}.jar"
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
