@@ -1,3 +1,5 @@
+<div align="center"><img src="docs/images/icon.png" alt="Logo" width="200"></div>
+
 # Create: Better Factory Gauge
 
 <span id="english-version"></span>
@@ -25,19 +27,19 @@
 
 In non‑crafting mode, you can put a **linked item** (dragged from your inventory or JEI) into the Factory Gauge.
 
-![Non-Crafting Mode](docs/images/非合成模式.png)
+<img src="docs/images/非合成模式.png" alt="Non-Crafting Mode" width="400">
 
 ### 2️. Crafting Mode – Multiplier Request
 
 When the Factory Gauge is in **crafting mode**, you can change the **material multiplier** for each request (default: 1x).
 
-![Crafting Mode](docs/images/合成模式.png)
+<img src="docs/images/合成模式.png" alt="Crafting Mode" width="400">
 
 ### 3. Target Storage Amount
 
 Adjust the maximum target storage amount to 1000 items per stack.
 
-![Target Storage Amount](docs/images/目标存储数量.png)
+<img src="docs/images/目标存储数量.png" alt="Target Storage Amount" width="400">
 
 ## License
 
@@ -80,19 +82,19 @@ This project is licensed under the **MIT License** – you are free to use, modi
 
 在非合成模式下，你可以将**已添加链接的物品**（例如通过*物品栏*或*JEI*拖拽）放入工厂仪表。
 
-![非合成模式](docs/images/非合成模式.png)
+<img src="docs/images/非合成模式.png" alt="非合成模式" width="400">
 
 ### 2️. 合成模式 – 倍数请求
 
 当工厂仪表处于**合成模式**时，你可以修改**单次请求的材料倍数**（默认为 1 倍）。
 
-![合成模式](docs/images/合成模式.png)
+<img src="docs/images/合成模式.png" alt="合成模式" width="400">
 
 ### 3. 目标存储数量
 
 调整最大值为1000个/组
 
-![目标存储数量](docs/images/目标存储数量.png)
+<img src="docs/images/目标存储数量.png" alt="目标存储数量" width="400">
 
 ## 许可证
 
