@@ -89,6 +89,6 @@ jobs:
           file_path: "build/libs/${{ steps.props.outputs.mod_id }}-${{ steps.props.outputs.mod_version }}.jar"
           game_endpoint: "minecraft"
           relations: "create:requiredDependency"
-          game_versions: "Minecraft 1.21.1,Java 21,NeoForge"
+          game_versions: "Minecraft 1.21:1.21.1,Java 21,NeoForge"
           project_id: "1574869"
           token: "${{ secrets.CF_API_TOKEN }}"
